@@ -29,7 +29,12 @@ export default function Navbar() {
     }
   }, [isAdmin]);
 
-  const handleLogout = () => { logout(); navigate('/login'); setOpen(false); };
+  const handleLogout = () => {
+    const isStaffOrAdmin = isStaff || isAdmin;
+    logout();
+    navigate(isStaffOrAdmin ? '/staff/login' : '/login');
+    setOpen(false);
+  };
 
   const handleStationChange = (e) => {
     const stationId = e.target.value;
