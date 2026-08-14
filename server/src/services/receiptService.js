@@ -40,7 +40,6 @@ function generateReceiptPDF({ referenceNumber, stationName, size, handlingFeeCen
     const rows = [
       ['Station', stationName],
       ['Parcel Size', size],
-      ['Handling Fee', `$${fee} CAD`],
       ['Delivery Date', date],
       ['Status', 'Delivered'],
     ];
@@ -57,16 +56,8 @@ function generateReceiptPDF({ referenceNumber, stationName, size, handlingFeeCen
       y += 24;
     });
 
-    // Total box
-    y += 8;
-    doc.rect(m, y, contentWidth, 36).fill('#fffbeb');
-    doc.rect(m, y, contentWidth, 36).lineWidth(0.5).strokeColor('#fde68a').stroke();
-    doc.fontSize(11).fillColor('#92400e').text('TOTAL PAID', m + 14, y + 10, { continued: false });
-    doc.fontSize(14).fillColor('#0f172a').font('Helvetica-Bold').text(`$${fee} CAD`, 0, y + 9, { width: doc.page.width - m - 14, align: 'right', continued: false });
-    doc.font('Helvetica');
-
     // Signature
-    y += 54;
+    y += 24;
     doc.fontSize(9).fillColor('#94a3b8').text('SIGNATURE', m, y, { continued: false });
     y += 14;
     doc.moveTo(m, y).lineTo(m + contentWidth, y).lineWidth(0.5).strokeColor('#e2e8f0').stroke();

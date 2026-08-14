@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../../api/client';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import sizeGuideImg from '../../assets/size_guide.jpeg';
 
 const SIZES = [
-  { value: 'Small', fee: '$5.00', cents: 500 },
-  { value: 'Medium', fee: '$7.00', cents: 700 },
-  { value: 'Large', fee: '$10.00', cents: 1000 },
-  { value: 'Extra Large', fee: '$12.00', cents: 1200 },
+  { value: 'Small', fee: 'Free', cents: 0 },
+  { value: 'Medium', fee: 'Free', cents: 0 },
+  { value: 'Large', fee: 'Free', cents: 0 },
+  { value: 'Extra Large', fee: 'Free', cents: 0 },
 ];
 
 export default function NewParcelPage() {
+  const navigate = useNavigate();
   const [stations, setStations] = useState([]);
   const [prefs, setPrefs] = useState([]);
   const [stationId, setStationId] = useState('');
@@ -46,10 +47,9 @@ export default function NewParcelPage() {
     setError(''); setSubmitting(true);
     try {
       const { data } = await api.post('/parcels', { stationId, size });
-      localStorage.setItem('pendingParcel', JSON.stringify({ size, stationId }));
-      window.location.href = data.sessionUrl;
+      navigate('/parcels/success', { state: { parcel: data } });
     } catch (err) {
-      setError(err.response?.data?.error?.message || 'Failed to create payment session.');
+      setError(err.response?.data?.error?.message || 'Failed to submit parcel request.');
       setSubmitting(false);
     }
   };
@@ -60,7 +60,7 @@ export default function NewParcelPage() {
   return (
     <div className="container">
       <h1 className="page-title">Send a New Parcel</h1>
-      <p className="page-subtitle">Choose a station and parcel size, then pay the handling fee</p>
+      <p className="page-subtitle">Choose a station and parcel size to submit your request</p>
       {error && <div className="error-msg mb-20">{error}</div>}
 
       {/* Step 1: Station */}
@@ -115,7 +115,6 @@ export default function NewParcelPage() {
               background: size === s.value ? 'linear-gradient(135deg, #f0f9ff, #e0f2fe)' : '#fff',
             }}>
               <p style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{s.value}</p>
-              <p style={{ fontWeight: 800, fontSize: 20, color: '#d05535', marginTop: 4 }}>{s.fee}</p>
             </div>
           ))}
         </div>
@@ -128,12 +127,8 @@ export default function NewParcelPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, marginBottom: 6 }}>
             <span style={{ color: '#64748b' }}>Station</span><strong>{selectedStation?.name}</strong>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, marginBottom: 6 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16 }}>
             <span style={{ color: '#64748b' }}>Size</span><strong>{size}</strong>
-          </div>
-          <div className="divider" />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 18 }}>
-            <span style={{ fontWeight: 600 }}>Handling Fee</span><strong style={{ color: '#d05535' }}>{SIZES.find(s => s.value === size)?.fee} CAD</strong>
           </div>
         </div>
       )}
@@ -152,7 +147,7 @@ export default function NewParcelPage() {
 
       <button className="btn btn-primary btn-block" onClick={handleSubmit} disabled={submitting || !stationId || !size || !agreedTerms}
         style={{ fontSize: 18, padding: '16px 28px' }}>
-        {submitting ? 'Redirecting to Payment...' : 'Proceed to Payment'}
+        {submitting ? 'Submitting Request...' : 'Submit Parcel Request'}
       </button>
 
       {/* Size Guide Modal */}

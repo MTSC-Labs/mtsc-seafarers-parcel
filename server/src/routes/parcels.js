@@ -4,7 +4,6 @@ const { ParcelRequest, User } = require('../models');
 const { getHandlingFee } = require('../utils/handlingFees');
 const { generateUniqueReference } = require('../utils/referenceNumber');
 const { validateTransition, getTimestampField } = require('../utils/statusTransitions');
-const { createCheckoutSession, retrieveSession } = require('../services/stripeService');
 const { generateQRCode } = require('../services/qrService');
 const { generateReceiptPDF } = require('../services/receiptService');
 const { sendRequestEmail } = require('../services/emailService');
@@ -15,7 +14,7 @@ function findStation(req, stationId) {
   return req.app.locals.stations.find(s => s.id === stationId);
 }
 
-// POST /api/parcels - create parcel + Stripe session
+// POST /api/parcels - create parcel request directly (Free)
 router.post('/', async (req, res) => {
   try {
     const { stationId, size } = req.body;
@@ -30,73 +29,20 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: { code: 'INVALID_SIZE', message: 'Invalid parcel size' } });
     }
 
-    // Use the request origin for payment redirects (so it works from any allowed domain)
-    let origin = req.get('origin');
-    if (!origin && req.get('referer')) {
-      const referer = req.get('referer');
-      const match = referer.match(/^(https?:\/\/[^\/]+)/);
-      origin = match ? match[1] : null;
-    }
-    const frontendUrl = origin || (process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',')[0].trim() : 'http://localhost:5173');
-    
-    console.log('zoro Payment redirect - Origin:', origin, 'Using:', frontendUrl);
-    
-    const successUrl = `${frontendUrl}/payment/success?session_id={CHECKOUT_SESSION_ID}&size=${encodeURIComponent(size)}&stationId=${encodeURIComponent(stationId)}`;
-    const cancelUrl = `${frontendUrl}/payment/cancel`;
-
-    const session = await createCheckoutSession({ size, handlingFeeCents, successUrl, cancelUrl });
-    res.status(201).json({ sessionUrl: session.url, sessionId: session.id });
-  } catch (err) {
-    res.status(502).json({ error: { code: 'STRIPE_ERROR', message: 'Failed to create payment session. Please retry.' } });
-  }
-});
-
-// POST /api/parcels/confirm-payment - verify Stripe session, finalize parcel
-router.post('/confirm-payment', async (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    if (!sessionId) return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'sessionId is required' } });
-
-    // Idempotency: check if parcel already exists for this session
-    const existing = await ParcelRequest.findOne({ where: { stripeSessionId: sessionId } });
-    if (existing) {
-      const station = findStation(req, existing.stationId);
-      return res.json({ ...existing.toJSON(), stationName: station?.name, stationAddress: station?.address, stationPhone: station?.phone, stationEmail: station?.email });
-    }
-
-    const { size, stationId } = req.body;
-    if (!size || !stationId) {
-      return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'size and stationId are required' } });
-    }
-
-    let session;
-    try {
-      session = await retrieveSession(sessionId);
-    } catch (stripeErr) {
-      console.error('Stripe retrieve error:', stripeErr.message);
-      return res.status(502).json({ error: { code: 'STRIPE_ERROR', message: 'Failed to verify payment with Stripe. Please retry.' } });
-    }
-
-    if (session.payment_status !== 'paid') {
-      return res.status(400).json({ error: { code: 'PAYMENT_INCOMPLETE', message: 'Payment was not completed' } });
-    }
-
-    const handlingFeeCents = getHandlingFee(size);
     const referenceNumber = await generateUniqueReference(async (ref) => {
       return !!(await ParcelRequest.findOne({ where: { referenceNumber: ref } }));
     });
 
     const parcel = await ParcelRequest.create({
-      referenceNumber, userId: req.user.userId, stationId, size,
-      handlingFeeCents, status: 'AwaitingShipment', stripeSessionId: sessionId,
-    }).catch(async (createErr) => {
-      if (createErr.name === 'SequelizeUniqueConstraintError') {
-        return ParcelRequest.findOne({ where: { stripeSessionId: sessionId } });
-      }
-      throw createErr;
+      referenceNumber,
+      userId: req.user.userId,
+      stationId,
+      size,
+      handlingFeeCents,
+      status: 'AwaitingShipment',
+      stripeSessionId: null,
     });
 
-    const station = findStation(req, stationId);
     const user = await User.findByPk(req.user.userId);
     sendRequestEmail({
       email: user?.email,
@@ -108,7 +54,7 @@ router.post('/confirm-payment', async (req, res) => {
       seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
     }).catch(err => console.error('Request email error:', err.message));
 
-    res.json({
+    res.status(201).json({
       ...parcel.toJSON(),
       stationName: station?.name,
       stationAddress: station?.address,
@@ -116,8 +62,8 @@ router.post('/confirm-payment', async (req, res) => {
       stationEmail: station?.email,
     });
   } catch (err) {
-    console.error('Confirm payment error:', err);
-    res.status(500).json({ error: { code: 'PAYMENT_VERIFY_ERROR', message: 'Unable to verify payment. Please try again.' } });
+    console.error('Create parcel error:', err);
+    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to create parcel request. Please retry.' } });
   }
 });
 

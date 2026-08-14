@@ -46,7 +46,6 @@ export default function PastPickupsPage() {
           <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 15, color: '#475569', marginBottom: 16 }}>
             <div><span style={{ color: '#94a3b8' }}>Station</span><br /><strong>{p.stationName}</strong></div>
             <div><span style={{ color: '#94a3b8' }}>Size</span><br /><strong>{p.size}</strong></div>
-            <div><span style={{ color: '#94a3b8' }}>Fee Paid</span><br /><strong>${(p.handlingFeeCents / 100).toFixed(2)} CAD</strong></div>
             <div><span style={{ color: '#94a3b8' }}>Delivered</span><br /><strong>{new Date(p.deliveredAt).toLocaleDateString()}</strong></div>
           </div>
           <StationContact phone={p.stationPhone} email={p.stationEmail} />

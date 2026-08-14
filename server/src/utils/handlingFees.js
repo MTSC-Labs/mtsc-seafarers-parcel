@@ -1,8 +1,8 @@
 const HANDLING_FEES = {
-  Small: 500,
-  Medium: 700,
-  Large: 1000,
-  'Extra Large': 1200,
+  Small: 0,
+  Medium: 0,
+  Large: 0,
+  'Extra Large': 0,
 };
 
 function getHandlingFee(size) {

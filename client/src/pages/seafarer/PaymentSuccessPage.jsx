@@ -1,36 +1,38 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../../api/client';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StationContact from '../../components/common/StationContact';
 
 export default function PaymentSuccessPage() {
-  const [searchParams] = useSearchParams();
-  const [parcel, setParcel] = useState(null);
+  const location = useLocation();
+  const [parcel, setParcel] = useState(location.state?.parcel || null);
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!location.state?.parcel);
 
   useEffect(() => {
+    if (parcel) return;
     let cancelled = false;
-    const sessionId = searchParams.get('session_id');
-    if (!sessionId) { setError('No payment session found.'); setLoading(false); return; }
-    const size = searchParams.get('size') || JSON.parse(localStorage.getItem('pendingParcel') || '{}').size;
-    const stationId = searchParams.get('stationId') || JSON.parse(localStorage.getItem('pendingParcel') || '{}').stationId;
-    api.post('/parcels/confirm-payment', { sessionId, size, stationId })
-      .then(({ data }) => { if (!cancelled) { setParcel(data); localStorage.removeItem('pendingParcel'); } })
-      .catch(err => { if (!cancelled) setError(err.response?.data?.error?.message || 'Unable to verify payment.'); })
+    api.get('/parcels/active')
+      .then(({ data }) => {
+        if (!cancelled) {
+          if (data && data.length > 0) setParcel(data[0]);
+          else setError('No active parcel request found.');
+        }
+      })
+      .catch(() => { if (!cancelled) setError('Unable to load parcel details.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [parcel]);
 
-  if (loading) return <LoadingSpinner text="Confirming your payment..." />;
-  if (error) return (
+  if (loading) return <LoadingSpinner text="Loading your request details..." />;
+  if (error || !parcel) return (
     <div className="container" style={{ maxWidth: 500, margin: '60px auto' }}>
       <div className="card text-center" style={{ padding: 40 }}>
         <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
-        <h1 className="page-title">Payment Issue</h1>
-        <div className="error-msg" style={{ marginTop: 16 }}>{error}</div>
-        <Link to="/parcels/new" className="btn btn-primary mt-20">Try Again</Link>
+        <h1 className="page-title">Request Status</h1>
+        <div className="error-msg" style={{ marginTop: 16 }}>{error || 'Parcel information not available.'}</div>
+        <Link to="/dashboard" className="btn btn-primary mt-20">Go to Dashboard</Link>
       </div>
     </div>
   );
@@ -38,9 +40,9 @@ export default function PaymentSuccessPage() {
   return (
     <div className="container">
       <div className="card card-success text-center" style={{ padding: 40 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Payment Confirmed</div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#065f46' }}>Payment Successful!</h1>
-        <p style={{ color: '#047857', marginTop: 6 }}>Your parcel request has been created</p>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Request Confirmed</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#065f46' }}>Parcel Request Created!</h1>
+        <p style={{ color: '#047857', marginTop: 6 }}>Your parcel request has been created successfully</p>
       </div>
 
       <div className="card" style={{ padding: 32 }}>

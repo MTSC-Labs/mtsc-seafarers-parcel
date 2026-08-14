@@ -33,8 +33,8 @@ export default function ReportsPage() {
   const chartData = report ? {
     labels: ['Small', 'Medium', 'Large', 'Extra Large'],
     datasets: [{
-      label: 'Revenue (CAD)',
-      data: [report.breakdown.Small.fees / 100, report.breakdown.Medium.fees / 100, report.breakdown.Large.fees / 100, report.breakdown['Extra Large'].fees / 100],
+      label: 'Parcels',
+      data: [report.breakdown.Small.count, report.breakdown.Medium.count, report.breakdown.Large.count, report.breakdown['Extra Large'].count],
       backgroundColor: ['#d05535', '#f59e0b', '#1e3a5f', '#2A7B88'],
       borderRadius: 8, barPercentage: 0.6,
     }],
@@ -42,8 +42,8 @@ export default function ReportsPage() {
 
   return (
     <div className="container">
-      <h1 className="page-title">Revenue Reports</h1>
-      <p className="page-subtitle">Monthly handling fee income breakdown</p>
+      <h1 className="page-title">Parcel Reports</h1>
+      <p className="page-subtitle">Monthly parcel volume breakdown</p>
 
       <div className="card">
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 24 }}>
@@ -64,10 +64,6 @@ export default function ReportsPage() {
                 <p className="stat-value">{report.totalCount}</p>
                 <p className="stat-label">Total Parcels</p>
               </div>
-              <div className="stat-card" style={{ background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', border: '1px solid #fde68a', borderRadius: 14 }}>
-                <p className="stat-value">${(report.totalFees / 100).toFixed(2)}</p>
-                <p className="stat-label">Total Revenue</p>
-              </div>
             </div>
 
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '0 4px', marginBottom: 28, fontSize: 16 }}>
@@ -75,15 +71,13 @@ export default function ReportsPage() {
                 <tr>
                   <th style={{ textAlign: 'left', padding: '10px 12px', color: '#94a3b8', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Size</th>
                   <th style={{ textAlign: 'right', padding: '10px 12px', color: '#94a3b8', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Parcels</th>
-                  <th style={{ textAlign: 'right', padding: '10px 12px', color: '#94a3b8', fontWeight: 600, fontSize: 13, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Revenue</th>
                 </tr>
               </thead>
               <tbody>
                 {['Small', 'Medium', 'Large', 'Extra Large'].map(s => (
                   <tr key={s} style={{ background: '#f8fafc', borderRadius: 8 }}>
                     <td style={{ padding: '12px', fontWeight: 600, borderRadius: '8px 0 0 8px' }}>{s}</td>
-                    <td style={{ textAlign: 'right', padding: '12px' }}>{report.breakdown[s].count}</td>
-                    <td style={{ textAlign: 'right', padding: '12px', fontWeight: 600, color: '#d05535', borderRadius: '0 8px 8px 0' }}>${(report.breakdown[s].fees / 100).toFixed(2)}</td>
+                    <td style={{ textAlign: 'right', padding: '12px', borderRadius: '0 8px 8px 0' }}>{report.breakdown[s].count}</td>
                   </tr>
                 ))}
               </tbody>

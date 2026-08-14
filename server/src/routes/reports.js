@@ -77,7 +77,7 @@ router.get('/pdf', async (req, res) => {
 
     // Header
     doc.rect(0, 0, doc.page.width, 90).fill('#0f2744');
-    doc.fontSize(18).fillColor('#fbbf24').text('Revenue Report', m, 24, { continued: false });
+    doc.fontSize(18).fillColor('#fbbf24').text('Parcel Report', m, 24, { continued: false });
     doc.fontSize(9).fillColor('#94a3b8').text('Seafarers Parcel Pickup Service', m, 48, { continued: false });
     doc.fontSize(12).fillColor('#ffffff').text(`${MONTHS[month-1]} ${year}`, 0, 28, { width: doc.page.width - m, align: 'right', continued: false });
     doc.fontSize(9).fillColor('#94a3b8').text(stationName, 0, 48, { width: doc.page.width - m, align: 'right', continued: false });
@@ -89,13 +89,9 @@ router.get('/pdf', async (req, res) => {
     doc.moveTo(m, y).lineTo(m + cw, y).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
     y += 10;
 
-    doc.save(); doc.rect(m, y, cw / 2 - 6, 50).fill('#f0f9ff'); doc.restore();
+    doc.save(); doc.rect(m, y, cw, 50).fill('#f0f9ff'); doc.restore();
     doc.fontSize(22).fillColor('#0f172a').font('Helvetica-Bold').text(String(totalCount), m + 14, y + 8, { continued: false });
     doc.fontSize(9).fillColor('#64748b').font('Helvetica').text('Total Parcels', m + 14, y + 34, { continued: false });
-
-    doc.save(); doc.rect(m + cw / 2 + 6, y, cw / 2 - 6, 50).fill('#fffbeb'); doc.restore();
-    doc.fontSize(22).fillColor('#0f172a').font('Helvetica-Bold').text(`$${(totalFees / 100).toFixed(2)}`, m + cw / 2 + 20, y + 8, { continued: false });
-    doc.fontSize(9).fillColor('#64748b').font('Helvetica').text('Total Revenue (CAD)', m + cw / 2 + 20, y + 34, { continued: false });
 
     // Breakdown table
     y += 70;
@@ -108,7 +104,6 @@ router.get('/pdf', async (req, res) => {
     doc.fontSize(9).fillColor('#94a3b8').font('Helvetica-Bold');
     doc.text('SIZE', m + 10, y, { continued: false });
     doc.text('PARCELS', m + 200, y, { continued: false });
-    doc.text('REVENUE', m + 340, y, { continued: false });
     doc.font('Helvetica');
     y += 20;
 
@@ -116,7 +111,6 @@ router.get('/pdf', async (req, res) => {
       if (i % 2 === 0) { doc.save(); doc.rect(m, y - 4, cw, 24).fill('#f8fafc'); doc.restore(); }
       doc.fontSize(11).fillColor('#0f172a').font('Helvetica-Bold').text(size, m + 10, y, { continued: false });
       doc.font('Helvetica').fillColor('#475569').text(String(breakdown[size].count), m + 200, y, { continued: false });
-      doc.fillColor('#d05535').font('Helvetica-Bold').text(`$${(breakdown[size].fees / 100).toFixed(2)}`, m + 340, y, { continued: false });
       doc.font('Helvetica');
       y += 24;
     });
@@ -127,7 +121,6 @@ router.get('/pdf', async (req, res) => {
     doc.rect(m, y, cw, 30).lineWidth(0.5).strokeColor('#fde68a').stroke();
     doc.fontSize(11).fillColor('#92400e').font('Helvetica-Bold').text('TOTAL', m + 10, y + 8, { continued: false });
     doc.text(String(totalCount), m + 200, y + 8, { continued: false });
-    doc.fillColor('#0f172a').text(`$${(totalFees / 100).toFixed(2)} CAD`, m + 340, y + 8, { continued: false });
     doc.font('Helvetica');
 
     // Footer

@@ -43,6 +43,7 @@ function AppRoutes() {
       <Route path="/staff/login" element={user ? <Navigate to="/staff/dashboard" /> : <StaffLoginPage />} />
       <Route path="/dashboard" element={<ProtectedRoute role="seafarer"><DashboardPage /></ProtectedRoute>} />
       <Route path="/parcels/new" element={<ProtectedRoute role="seafarer"><NewParcelPage /></ProtectedRoute>} />
+      <Route path="/parcels/success" element={<ProtectedRoute role="seafarer"><PaymentSuccessPage /></ProtectedRoute>} />
       <Route path="/payment/success" element={<ProtectedRoute role="seafarer"><PaymentSuccessPage /></ProtectedRoute>} />
       <Route path="/payment/cancel" element={<ProtectedRoute role="seafarer"><PaymentCancelPage /></ProtectedRoute>} />
       <Route path="/past-pickups" element={<ProtectedRoute role="seafarer"><PastPickupsPage /></ProtectedRoute>} />

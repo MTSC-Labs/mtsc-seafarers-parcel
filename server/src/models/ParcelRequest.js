@@ -28,6 +28,7 @@ module.exports = (sequelize) => {
     handlingFeeCents: {
       type: DataTypes.INTEGER,
       allowNull: false,
+      defaultValue: 0,
     },
     status: {
       type: DataTypes.ENUM('AwaitingShipment', 'Shipped', 'Arrived', 'Delivered'),
@@ -48,8 +49,7 @@ module.exports = (sequelize) => {
     },
     stripeSessionId: {
       type: DataTypes.STRING,
-      unique: true,
-      allowNull: false,
+      allowNull: true,
     },
     qrCodeDataUrl: {
       type: DataTypes.TEXT,

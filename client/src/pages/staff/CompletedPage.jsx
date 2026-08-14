@@ -65,7 +65,6 @@ export default function CompletedPage() {
             <div><span style={{ color: '#94a3b8' }}>Seafarer</span><br /><strong>{p.seafarerName || p.seafarerEmail}</strong></div>
             {p.seafarerPhone && <div><span style={{ color: '#94a3b8' }}>Phone</span><br /><strong>{p.seafarerPhone}</strong></div>}
             <div><span style={{ color: '#94a3b8' }}>Size</span><br /><strong>{p.size}</strong></div>
-            <div><span style={{ color: '#94a3b8' }}>Fee</span><br /><strong>${(p.handlingFeeCents / 100).toFixed(2)} CAD</strong></div>
             {p.deliveredAt && <div><span style={{ color: '#94a3b8' }}>Delivered</span><br /><strong>{new Date(p.deliveredAt).toLocaleDateString()}</strong></div>}
           </div>
           {p.signatureDataUrl && (
