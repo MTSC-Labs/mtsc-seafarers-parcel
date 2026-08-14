@@ -217,8 +217,8 @@ async function sendArrivalEmail(parcelData) {
   const success = await sendBrevoEmail({
     from: getStationFromAddress(parcelData.stationName),
     to,
-    cc: "mayur54562@gmail.com",
-    bcc: "cloudgenz.dev@gmail.com",
+    cc: pickFirstEmail(parcelData.stationEmail),
+    bcc: "marsha.clyne@missiontoseafarers.org",
     replyTo: stationReplyTo || parcelData.stationEmail,
     subject,
     html,
@@ -263,8 +263,8 @@ async function sendDeliveryEmail(parcelData) {
   const success = await sendBrevoEmail({
     from: getStationFromAddress(parcelData.stationName),
     to,
-     cc: "mayur54562@gmail.com",
-    bcc: "cloudgenz.dev@gmail.com",
+    cc: pickFirstEmail(parcelData.stationEmail),
+    bcc: "marsha.clyne@missiontoseafarers.org",
     replyTo: stationReplyTo || parcelData.stationEmail,
     subject,
     html,
@@ -328,8 +328,8 @@ async function sendRequestEmail({
   const success = await sendBrevoEmail({
     from: getStationFromAddress(stationName),
     to: email,
-    cc: "mayur54562@gmail.com",
-    bcc: "cloudgenz.dev@gmail.com",
+    cc: pickFirstEmail(stationEmail),
+    bcc: "marsha.clyne@missiontoseafarers.org",
     replyTo: stationReplyTo || stationEmail,
     subject,
     html,
