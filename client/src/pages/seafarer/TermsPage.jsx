@@ -41,7 +41,7 @@ export default function TermsPage() {
           <li>All parcels comply with Canadian laws, customs regulations, and port authority requirements</li>
           <li>Contents are legal, safe, and permitted</li>
           <li>Parcels are properly labeled with: full recipient name, vessel name, expected arrival date</li>
-          <li>The correct parcel size category is selected and paid</li>
+          <li>The correct parcel size category is selected</li>
         </ul>
         <p>The Mission assumes no responsibility for improperly prepared or non-compliant parcels.</p>
 
@@ -71,29 +71,19 @@ export default function TermsPage() {
         <h2 style={h2}>10. Right to Refuse Service</h2>
         <p>The Mission reserves the right, at its sole discretion, to refuse, reject, or dispose of any parcel, deny access to this service, or take any action deemed necessary without obligation to provide a reason.</p>
 
-        <h2 style={h2}>11. Service Fees (Non-Refundable)</h2>
-        <p>Parcel pickup fees are as follows:</p>
-        <ul style={ul}>
-          <li>Small: $5</li>
-          <li>Medium: $7</li>
-          <li>Large: $10</li>
-          <li>Extra Large: $12</li>
-        </ul>
-        <p>All fees are non-refundable, including in cases of unclaimed parcels, refused deliveries, or non-compliant shipments.</p>
-
-        <h2 style={h2}>12. No Guarantee of Service</h2>
+        <h2 style={h2}>11. No Guarantee of Service</h2>
         <p>This service is provided on a best-effort basis only. The Mission may modify, suspend, limit, or discontinue the service at any time without notice.</p>
 
-        <h2 style={h2}>13. Privacy and Use of Information</h2>
+        <h2 style={h2}>12. Privacy and Use of Information</h2>
         <p>Personal information collected for this service will be used solely for operational and administrative purposes related to parcel handling and communication. All information will be handled in accordance with applicable Canadian privacy laws.</p>
 
-        <h2 style={h2}>14. Force Majeure</h2>
+        <h2 style={h2}>13. Force Majeure</h2>
         <p>The Mission shall not be liable for any failure or delay in providing the service where such failure or delay results from events beyond its reasonable control, including but not limited to port closures, labour disruptions, weather conditions, government actions, emergencies or unforeseen circumstances.</p>
 
-        <h2 style={h2}>15. Governing Law</h2>
+        <h2 style={h2}>14. Governing Law</h2>
         <p>These Terms & Conditions shall be governed by and interpreted in accordance with the laws of the Province of Ontario and the applicable laws of Canada.</p>
 
-        <h2 style={h2}>16. Acceptance of Terms</h2>
+        <h2 style={h2}>15. Acceptance of Terms</h2>
         <p>By using this service, you confirm that you have read and understood these Terms & Conditions, you agree to be legally bound by them, and you accept full responsibility for your parcel and its contents.</p>
       </div>
     </div>

@@ -75,21 +75,34 @@ export default function NewParcelPage() {
             padding: '14px 16px', borderRadius: 12, marginBottom: 8, cursor: 'pointer', transition: 'all 0.15s',
             border: stationId === s.id ? '2px solid #d05535' : '2px solid #e2e8f0',
             background: stationId === s.id ? 'linear-gradient(135deg, #f0f9ff, #e0f2fe)' : '#fff',
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
           }}>
-            <div>
+            <div style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
               <p style={{ fontWeight: 600, fontSize: 16, color: '#0f172a' }}>{s.name}</p>
               <p style={{ color: '#64748b', fontSize: 14 }}>{s.address}</p>
               {(s.phone || s.email) && (
-                <p style={{ color: '#0369a1', fontSize: 13, marginTop: 4 }}>
+                <p style={{ color: '#0369a1', fontSize: 13, marginTop: 4, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                   {s.phone && <span>{s.phone}</span>}
                   {s.phone && s.email && <span> · </span>}
-                  {s.email && <span>{s.email}</span>}
+                  {s.email && (
+                    <span>
+                      {s.email.split(',').map((item, idx, arr) => (
+                        <span key={idx}>
+                          {item.trim()}
+                          {idx < arr.length - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </p>
               )}
             </div>
             <button onClick={(e) => { e.stopPropagation(); togglePref(s.id); }}
-              style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: prefs.includes(s.id) ? '#f59e0b' : '#d1d5db', transition: 'color 0.2s' }}
+              style={{
+                background: 'none', border: 'none', fontSize: 22, cursor: 'pointer',
+                color: prefs.includes(s.id) ? '#f59e0b' : '#d1d5db', transition: 'color 0.2s',
+                flexShrink: 0, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+              }}
               aria-label={prefs.includes(s.id) ? 'Remove from favourites' : 'Add to favourites'}>
               {prefs.includes(s.id) ? '★' : '☆'}
             </button>
