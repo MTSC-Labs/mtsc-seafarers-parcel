@@ -213,3 +213,89 @@ a:hover { color: #0284c7; text-decoration: underline; }
     max-width: 100% !important;
   }
 }
+
+/* Split Screen Login Page */
+.login-split-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #f8fafc;
+}
+
+.login-split-visual {
+  flex: 0 0 44%;
+  width: 44%;
+  max-width: 44%;
+  background: linear-gradient(145deg, #125b9a 0%, #0f4c81 40%, #092e50 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-split-visual-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.login-split-img {
+  max-height: 80vh;
+  max-width: 80%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 18px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35), 0 6px 18px rgba(0, 0, 0, 0.2);
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  display: block;
+}
+
+.login-split-form-container {
+  flex: 0 0 56%;
+  width: 56%;
+  max-width: 56%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 28px;
+  background-color: #f8fafc;
+}
+
+.login-split-form-wrapper {
+  width: 100%;
+  max-width: 440px;
+}
+
+@media (max-width: 900px) {
+  .login-split-page {
+    flex-direction: column;
+  }
+
+  .login-split-visual {
+    flex: none;
+    width: 100%;
+    max-width: 100%;
+    padding: 20px 20px;
+    min-height: 280px;
+  }
+
+  .login-split-img {
+    max-height: 280px;
+    max-width: 80%;
+  }
+
+  .login-split-form-container {
+    flex: 1;
+    width: 100%;
+    max-width: 100%;
+    padding: 32px 20px 48px;
+  }
+}

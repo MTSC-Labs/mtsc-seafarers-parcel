@@ -71,6 +71,11 @@ export default function PaymentSuccessPage() {
               <p style={{ fontWeight: 700, color: '#92400e', fontSize: 14, marginBottom: 4 }}>📦 Shipping Instructions</p>
               <p style={{ color: '#78350f', fontSize: 14 }}>Address your parcel as <strong>C/O Mission to Seafarers</strong> at the station address above.</p>
               <p style={{ color: '#78350f', fontSize: 14, marginTop: 4 }}>Please request <strong>signature on delivery</strong> when shipping.</p>
+              {(parcel.stationName?.toLowerCase().includes('halifax') || parcel.stationId === 'halifax-port') && (
+                <p style={{ color: '#78350f', fontSize: 14, marginTop: 8, paddingTop: 8, borderTop: '1px dashed #fde68a' }}>
+                  <strong>Important:</strong> Please check the business hours of Canada Post at Fenwick and advise your courier of the delivery time.
+                </p>
+              )}
             </div>
           </div>
         </div>

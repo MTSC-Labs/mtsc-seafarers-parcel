@@ -290,6 +290,7 @@ function requestEmailHtml({
   stationAddress,
   seafarerName,
 }) {
+  const isHalifax = stationName && stationName.toLowerCase().includes("halifax");
   return `<!DOCTYPE html><html><body style="font-family:sans-serif;color:#1B2A4A;">
 <h2>New Parcel Request</h2>
 <p>A new parcel request has been created${seafarerName ? ` by <strong>${seafarerName}</strong>` : ""}.</p>
@@ -300,6 +301,11 @@ function requestEmailHtml({
 <h3>Shipping Instructions</h3>
 <p>Please address your parcel as <strong>C/O Mission to Seafarers</strong> at the station address above.</p>
 <p>Please request <strong>signature on delivery</strong> when shipping.</p>
+${
+  isHalifax
+    ? `<p style="background:#fff3cd;border-left:4px solid #ffc107;padding:12px;margin:20px 0;"><strong>Important:</strong> Please check the business hours of Canada Post at Fenwick and advise your courier of the delivery time.</p>`
+    : ""
+}
 <p>Thank you,<br/>Mission to Seafarers Canada</p>
 </body></html>`;
 }
