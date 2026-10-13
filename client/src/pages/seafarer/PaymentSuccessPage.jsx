@@ -3,12 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import api from '../../api/client';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StationContact from '../../components/common/StationContact';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, Gift } from '../../components/common/Dialog';
 
 export default function PaymentSuccessPage() {
   const location = useLocation();
   const [parcel, setParcel] = useState(location.state?.parcel || null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(!location.state?.parcel);
+  const [isDonateOpen, setIsDonateOpen] = useState(false);
 
   useEffect(() => {
     if (parcel) return;
@@ -36,6 +38,12 @@ export default function PaymentSuccessPage() {
       </div>
     </div>
   );
+
+  const isToronto =
+    parcel.stationName?.toLowerCase().includes('toronto') ||
+    parcel.stationId === 'toronto-port' ||
+    parcel.station?.name?.toLowerCase().includes('toronto') ||
+    parcel.station?.id === 'toronto-port';
 
   return (
     <div className="container">
@@ -86,7 +94,50 @@ export default function PaymentSuccessPage() {
         </div>
       </div>
 
+      {isToronto && (
+        <button
+          type="button"
+          onClick={() => setIsDonateOpen(true)}
+          className="btn btn-secondary btn-block"
+          style={{
+            fontSize: 17,
+            fontWeight: 700,
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+          }}
+        >
+          <Gift size={20} style={{ color: '#fff' }} />
+          Help MTSC by Donating
+        </button>
+      )}
+
       <Link to="/dashboard" className="btn btn-primary btn-block" style={{ fontSize: 18 }}>Go to My Parcels →</Link>
+
+      {/* ─────────── MODAL: DONATION WIDGET ─────────── */}
+      <Dialog open={isDonateOpen} onOpenChange={setIsDonateOpen}>
+        <DialogContent className="max-w-5xl h-[95vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-[6px] pb-3 shrink-0 border-b">
+            <DialogTitle className="flex items-center gap-3 text-xl font-extrabold text-navy">
+              <Gift className="h-5 w-5 text-coral" />
+              Secure Donation Form
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden p-2">
+            <div className="w-full h-full bg-white rounded-lg border border-border overflow-hidden">
+              <iframe
+                src="https://www.canadahelps.org/en/dn/145961"
+                title="CanadaHelps Secure Donation Form"
+                className="w-full h-full border-none block bg-transparent"
+                allow="payment"
+              ></iframe>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

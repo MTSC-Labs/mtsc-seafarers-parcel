@@ -299,3 +299,38 @@ a:hover { color: #0284c7; text-decoration: underline; }
     padding: 32px 20px 48px;
   }
 }
+
+/* Modal & Donation Dialog utilities */
+.dialog-content {
+  box-sizing: border-box;
+}
+.max-w-5xl { max-width: 1024px; }
+.h-\[95vh\] { height: 95vh; }
+.p-0 { padding: 0 !important; }
+.p-2 { padding: 8px; }
+.p-\[6px\] { padding: 6px; }
+.pb-3 { padding-bottom: 12px; }
+.shrink-0 { flex-shrink: 0; }
+.border-b { border-bottom: 1px solid #e2e8f0; }
+.border { border: 1px solid #e2e8f0; }
+.border-border { border-color: #e2e8f0; }
+.border-none { border: none !important; }
+.overflow-hidden { overflow: hidden; }
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1 1 0%; min-height: 0; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.rounded-lg { border-radius: 8px; }
+.items-center { align-items: center; }
+.gap-3 { gap: 12px; }
+.text-xl { font-size: 1.25rem; }
+.font-extrabold { font-weight: 800; }
+.text-navy { color: #0f2744; }
+.text-coral { color: #d05535; }
+.h-5 { height: 20px; }
+.w-5 { width: 20px; }
+.bg-white { background-color: #ffffff; }
+.bg-transparent { background-color: transparent; }
+.block { display: block; }
+
