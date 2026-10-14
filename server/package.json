@@ -4,13 +4,11 @@
   "description": "Backend API for Seafarers Parcel Pickup Service - Mission to Seafarers Canada",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
-    "test": "jest --run",
-    "worker:dev": "wrangler dev src/worker.js",
-    "worker:deploy": "wrangler deploy",
+    "dev": "wrangler dev src/index.js",
+    "deploy": "wrangler deploy",
     "d1:migrate:local": "wrangler d1 execute DB --local --file=d1/schema.sql",
-    "d1:migrate:remote": "wrangler d1 execute DB --remote --file=d1/schema.sql"
+    "d1:migrate:remote": "wrangler d1 execute DB --remote --file=d1/schema.sql",
+    "test": "jest --run"
   },
   "dependencies": {
     "axios": "^1.7.9",

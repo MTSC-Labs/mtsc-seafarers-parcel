@@ -1,43 +1,85 @@
-const express = require('express');
-const { PreferredStation } = require('../models');
+﻿const { Hono } = require('hono');
+const { eq, and } = require('drizzle-orm');
+const { getDb, preferredStations } = require('../db');
 
-const router = express.Router();
+const preferencesRouter = new Hono();
 
-router.get('/', async (req, res) => {
+// GET /api/preferences/stations
+preferencesRouter.get('/', async (c) => {
   try {
-    const prefs = await PreferredStation.findAll({ where: { userId: req.user.userId } });
-    res.json(prefs.map(p => ({ id: p.id, stationId: p.stationId })));
+    const user = c.get('user');
+    const db = getDb(c.env);
+
+    const prefs = await db.select({
+      id: preferredStations.id,
+      stationId: preferredStations.stationId,
+    }).from(preferredStations).where(eq(preferredStations.userId, user.userId));
+
+    return c.json(prefs);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch preferences' } });
+    console.error('Fetch preferences error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch preferences' } }, 500);
   }
 });
 
-router.post('/', async (req, res) => {
+// POST /api/preferences/stations
+preferencesRouter.post('/', async (c) => {
   try {
-    const { stationId } = req.body;
+    const user = c.get('user');
+    const { stationId } = await c.req.json();
     if (!stationId) {
-      return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'stationId is required' } });
+      return c.json({ error: { code: 'MISSING_FIELDS', message: 'stationId is required' } }, 400);
     }
-    const [pref, created] = await PreferredStation.findOrCreate({
-      where: { userId: req.user.userId, stationId },
-      defaults: { userId: req.user.userId, stationId },
-    });
-    res.status(created ? 201 : 200).json({ id: pref.id, stationId: pref.stationId });
+
+    const db = getDb(c.env);
+
+    // Check if already exists
+    const [existing] = await db.select().from(preferredStations).where(
+      and(
+        eq(preferredStations.userId, user.userId),
+        eq(preferredStations.stationId, stationId)
+      )
+    ).limit(1);
+
+    if (existing) {
+      return c.json({ id: existing.id, stationId: existing.stationId }, 200);
+    }
+
+    const [created] = await db.insert(preferredStations).values({
+      userId: user.userId,
+      stationId,
+    }).returning();
+
+    return c.json({ id: created.id, stationId: created.stationId }, 201);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to save preference' } });
+    console.error('Save preference error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to save preference' } }, 500);
   }
 });
 
-router.delete('/:stationId', async (req, res) => {
+// DELETE /api/preferences/stations/:stationId
+preferencesRouter.delete('/:stationId', async (c) => {
   try {
-    const deleted = await PreferredStation.destroy({
-      where: { userId: req.user.userId, stationId: req.params.stationId },
-    });
-    if (!deleted) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Preference not found' } });
-    res.json({ message: 'Preference removed' });
+    const user = c.get('user');
+    const stationId = c.req.param('stationId');
+
+    const db = getDb(c.env);
+    const deleted = await db.delete(preferredStations).where(
+      and(
+        eq(preferredStations.userId, user.userId),
+        eq(preferredStations.stationId, stationId)
+      )
+    ).returning();
+
+    if (!deleted || deleted.length === 0) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Preference not found' } }, 404);
+    }
+
+    return c.json({ message: 'Preference removed' });
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to remove preference' } });
+    console.error('Delete preference error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to remove preference' } }, 500);
   }
 });
 
-module.exports = router;
+module.exports = preferencesRouter;

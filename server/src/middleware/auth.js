@@ -1,16 +1,23 @@
-const jwt = require('jsonwebtoken');
+﻿const jwt = require('jsonwebtoken');
 
-function auth(req, res, next) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ error: { code: 'NO_TOKEN', message: 'Authentication required' } });
-  }
-  try {
-    req.user = jwt.verify(header.split(' ')[1], process.env.JWT_SECRET);
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: { code: 'INVALID_TOKEN', message: 'Invalid or expired token' } });
-  }
+function auth() {
+  return async (c, next) => {
+    const authHeader = c.req.header('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return c.json({ error: { code: 'NO_TOKEN', message: 'Authentication required' } }, 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+    const secret = c.env.JWT_SECRET || 'dev_secret_key_change_in_production_12345';
+
+    try {
+      const decoded = jwt.verify(token, secret);
+      c.set('user', decoded);
+      await next();
+    } catch (err) {
+      return c.json({ error: { code: 'INVALID_TOKEN', message: 'Invalid or expired token' } }, 401);
+    }
+  };
 }
 
 module.exports = auth;

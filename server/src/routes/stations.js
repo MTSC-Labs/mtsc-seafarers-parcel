@@ -1,18 +1,25 @@
-const express = require('express');
-const router = express.Router();
+﻿const { Hono } = require('hono');
+const { getDb, stations } = require('../db');
 
-const { Station } = require('../models');
+const stationsRouter = new Hono();
 
-// GET /api/stations - list all stations (no credentials exposed)
-router.get('/', async (req, res) => {
+// GET /api/stations
+stationsRouter.get('/', async (c) => {
   try {
-    const stations = await Station.findAll({
-      attributes: ['id', 'name', 'address', 'phone', 'email']
-    });
-    res.json(stations);
+    const db = getDb(c.env);
+    const stationList = await db.select({
+      id: stations.id,
+      name: stations.name,
+      address: stations.address,
+      phone: stations.phone,
+      email: stations.email,
+    }).from(stations);
+
+    return c.json(stationList);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch stations' } });
+    console.error('Fetch stations error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch stations' } }, 500);
   }
 });
 
-module.exports = router;
+module.exports = stationsRouter;

@@ -1,55 +1,57 @@
-const express = require('express');
+﻿const { Hono } = require('hono');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { Admin, Station } = require('../models');
+const { eq } = require('drizzle-orm');
+const { getDb, stations, admins } = require('../db');
 
-const router = express.Router();
+const stationAuthRouter = new Hono();
 
-// stations injected via app.locals
-router.post('/login', async (req, res) => {
+// POST /api/auth/station/login
+stationAuthRouter.post('/login', async (c) => {
   try {
-    const { username, password } = req.body;
+    const { username, password } = await c.req.json();
     if (!username || !password) {
-      return res.status(400).json({ error: { code: 'MISSING_FIELDS', message: 'Username and password are required' } });
+      return c.json({ error: { code: 'MISSING_FIELDS', message: 'Username and password are required' } }, 400);
     }
-    
-    // Check if it's a Station Staff
-    const station = await Station.findOne({ where: { staffUsername: username } });
 
+    const db = getDb(c.env);
+    const secret = c.env.JWT_SECRET || 'dev_secret_key_change_in_production_12345';
+
+    // 1. Check if Station Staff
+    const [station] = await db.select().from(stations).where(eq(stations.staffUsername, username)).limit(1);
     if (station && (await bcrypt.compare(password, station.staffPasswordHash))) {
       const token = jwt.sign(
         { stationId: station.id, role: 'staff', stationName: station.name },
-        process.env.JWT_SECRET,
+        secret,
         { expiresIn: '24h' }
       );
-      return res.json({ token, stationId: station.id, stationName: station.name, role: 'staff' });
+      return c.json({ token, stationId: station.id, stationName: station.name, role: 'staff' });
     }
 
-    // Check if it's a Super Admin
-    const admin = await Admin.findOne({ where: { username } });
+    // 2. Check if Super Admin
+    const [admin] = await db.select().from(admins).where(eq(admins.username, username)).limit(1);
     if (admin && (await bcrypt.compare(password, admin.passwordHash))) {
       const token = jwt.sign(
         { adminId: admin.id, role: 'admin', username: admin.username },
-        process.env.JWT_SECRET,
+        secret,
         { expiresIn: '24h' }
       );
-      // For Super Admin, we'll default to the first station but they can switch
-      const stations = await Station.findAll();
-      const defaultStation = stations[0];
-      return res.json({ 
-        token, 
-        stationId: defaultStation.id, 
-        stationName: defaultStation.name, 
+      const allStations = await db.select().from(stations);
+      const defaultStation = allStations[0] || { id: 'default', name: 'Default Station' };
+      return c.json({
+        token,
+        stationId: defaultStation.id,
+        stationName: defaultStation.name,
         role: 'admin',
-        username: admin.username 
+        username: admin.username,
       });
     }
 
-    return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Credentials are incorrect' } });
+    return c.json({ error: { code: 'INVALID_CREDENTIALS', message: 'Credentials are incorrect' } }, 401);
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Login failed' } });
+    console.error('Station login error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Login failed' } }, 500);
   }
 });
 
-module.exports = router;
+module.exports = stationAuthRouter;

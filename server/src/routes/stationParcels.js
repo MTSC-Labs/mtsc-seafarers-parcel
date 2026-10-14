@@ -1,36 +1,50 @@
-const express = require('express');
-const { Op } = require('sequelize');
-const { ParcelRequest, User } = require('../models');
+﻿const { Hono } = require('hono');
+const { eq, and, inArray, desc, asc } = require('drizzle-orm');
+const { getDb, parcelRequests, users, stations } = require('../db');
 const { validateTransition } = require('../utils/statusTransitions');
 const { generateQRCode } = require('../services/qrService');
+const { generateReceiptPDF } = require('../services/receiptService');
 const { sendArrivalEmail, sendDeliveryEmail } = require('../services/emailService');
 
-const router = express.Router();
+const stationParcelsRouter = new Hono();
 
-function findStation(req, stationId) {
-  return req.app.locals.stations.find(s => s.id === stationId);
+// Helper to attach seafarer/user details to parcel items
+async function enrichParcelsWithUser(db, parcels) {
+  if (!parcels || parcels.length === 0) return [];
+  const userIds = [...new Set(parcels.map(p => p.userId))];
+  const userMap = {};
+  if (userIds.length > 0) {
+    const userRecords = await db.select().from(users).where(inArray(users.id, userIds));
+    userRecords.forEach(u => { userMap[u.id] = u; });
+  }
+
+  return parcels.map(p => {
+    const u = userMap[p.userId];
+    return {
+      ...p,
+      seafarerEmail: u?.email || null,
+      seafarerName: u ? `${u.firstName} ${u.lastName}` : '',
+      seafarerPhone: u?.phone || null,
+    };
+  });
 }
 
 // GET /api/station/parcels/incoming
-router.get('/incoming', async (req, res) => {
+stationParcelsRouter.get('/incoming', async (c) => {
   try {
-    const { search } = req.query;
-    const where = { stationId: req.user.stationId, status: { [Op.in]: ['AwaitingShipment', 'Shipped'] } };
+    const staff = c.get('user');
+    const { search } = c.req.query();
+    const db = getDb(c.env);
 
-    const parcels = await ParcelRequest.findAll({
-      where,
-      include: [{ model: User, attributes: ['email', 'firstName', 'lastName', 'phone'] }],
-      order: [['estimatedArrival', 'ASC'], ['createdAt', 'DESC']],
-    });
+    const parcels = await db.select().from(parcelRequests)
+      .where(and(
+        eq(parcelRequests.stationId, staff.stationId),
+        inArray(parcelRequests.status, ['AwaitingShipment', 'Shipped'])
+      ))
+      .orderBy(asc(parcelRequests.estimatedArrival), desc(parcelRequests.createdAt));
 
-    let result = parcels.map(p => ({
-      ...p.toJSON(),
-      seafarerEmail: p.User?.email,
-      seafarerName: p.User ? `${p.User.firstName} ${p.User.lastName}` : '',
-      seafarerPhone: p.User?.phone,
-    }));
+    let result = await enrichParcelsWithUser(db, parcels);
 
-    // Client-side search by name, email, reference, or store
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(p =>
@@ -41,186 +55,258 @@ router.get('/incoming', async (req, res) => {
       );
     }
 
-    res.json(result);
+    return c.json(result);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch incoming parcels' } });
+    console.error('Incoming parcels error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch incoming parcels' } }, 500);
   }
 });
 
 // GET /api/station/parcels/pending-pickup
-router.get('/pending-pickup', async (req, res) => {
+stationParcelsRouter.get('/pending-pickup', async (c) => {
   try {
-    const { search } = req.query;
-    const parcels = await ParcelRequest.findAll({
-      where: { stationId: req.user.stationId, status: 'Arrived' },
-      include: [{ model: User, attributes: ['email', 'firstName', 'lastName', 'phone'] }],
-      order: [['arrivedAt', 'DESC']],
-    });
+    const staff = c.get('user');
+    const { search } = c.req.query();
+    const db = getDb(c.env);
 
-    let result = parcels.map(p => ({
-      ...p.toJSON(),
-      seafarerEmail: p.User?.email,
-      seafarerName: p.User ? `${p.User.firstName} ${p.User.lastName}` : '',
-      seafarerPhone: p.User?.phone,
-    }));
+    const parcels = await db.select().from(parcelRequests)
+      .where(and(
+        eq(parcelRequests.stationId, staff.stationId),
+        eq(parcelRequests.status, 'Arrived')
+      ))
+      .orderBy(desc(parcelRequests.arrivedAt));
+
+    let result = await enrichParcelsWithUser(db, parcels);
 
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(p =>
         p.seafarerName?.toLowerCase().includes(q) ||
         p.seafarerEmail?.toLowerCase().includes(q) ||
-        p.referenceNumber?.toLowerCase().includes(q) ||
-        p.shippingFrom?.toLowerCase().includes(q)
+        p.referenceNumber?.toLowerCase().includes(q)
       );
     }
 
-    res.json(result);
+    return c.json(result);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch pending pickup parcels' } });
+    console.error('Pending pickup parcels error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch pending pickup parcels' } }, 500);
   }
 });
 
-// GET /api/station/parcels/completed
-router.get('/completed', async (req, res) => {
+// GET /api/station/parcels/delivered
+stationParcelsRouter.get('/delivered', async (c) => {
   try {
-    const { search } = req.query;
-    const where = { stationId: req.user.stationId, status: 'Delivered' };
+    const staff = c.get('user');
+    const { search } = c.req.query();
+    const db = getDb(c.env);
 
-    const parcels = await ParcelRequest.findAll({
-      where,
-      include: [{ model: User, attributes: ['email', 'firstName', 'lastName', 'phone'] }],
-      order: [['deliveredAt', 'DESC']],
-      limit: search ? 50 : 10,
-    });
+    const parcels = await db.select().from(parcelRequests)
+      .where(and(
+        eq(parcelRequests.stationId, staff.stationId),
+        eq(parcelRequests.status, 'Delivered')
+      ))
+      .orderBy(desc(parcelRequests.deliveredAt));
 
-    let result = parcels.map(p => ({
-      ...p.toJSON(),
-      seafarerEmail: p.User?.email,
-      seafarerName: p.User ? `${p.User.firstName} ${p.User.lastName}` : '',
-      seafarerPhone: p.User?.phone,
-    }));
+    let result = await enrichParcelsWithUser(db, parcels);
 
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(p =>
         p.seafarerName?.toLowerCase().includes(q) ||
         p.seafarerEmail?.toLowerCase().includes(q) ||
-        p.referenceNumber?.toLowerCase().includes(q) ||
-        p.shippingFrom?.toLowerCase().includes(q)
+        p.referenceNumber?.toLowerCase().includes(q)
       );
     }
 
-    res.json(result);
+    return c.json(result);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch completed parcels' } });
+    console.error('Delivered parcels error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch delivered parcels' } }, 500);
   }
 });
 
-// PATCH /api/station/parcels/:id/arrived
-router.patch('/:id/arrived', async (req, res) => {
+// PATCH /api/station/parcels/:id/arrive
+stationParcelsRouter.patch('/:id/arrive', async (c) => {
   try {
-    const parcel = await ParcelRequest.findOne({
-      where: { id: req.params.id, stationId: req.user.stationId },
-      include: [{ model: User, attributes: ['email', 'firstName', 'lastName'] }],
-    });
-    if (!parcel) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } });
+    const staff = c.get('user');
+    const id = parseInt(c.req.param('id'), 10);
+    const db = getDb(c.env);
+
+    const [parcel] = await db.select().from(parcelRequests).where(
+      and(eq(parcelRequests.id, id), eq(parcelRequests.stationId, staff.stationId))
+    ).limit(1);
+
+    if (!parcel) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } }, 404);
+    }
 
     if (!validateTransition(parcel.status, 'Arrived')) {
-      return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: `Cannot transition from ${parcel.status} to Arrived` } });
+      return c.json({ error: { code: 'INVALID_TRANSITION', message: `Cannot transition from ${parcel.status} to Arrived` } }, 409);
     }
 
-    const qrCodeDataUrl = await generateQRCode(parcel.referenceNumber);
-    await parcel.update({ status: 'Arrived', arrivedAt: new Date(), qrCodeDataUrl });
+    const qrCode = await generateQRCode(parcel.referenceNumber);
+    const now = new Date().toISOString();
 
-    const station = findStation(req, parcel.stationId);
-    await sendArrivalEmail({
-      email: parcel.User?.email,
+    const [updated] = await db.update(parcelRequests).set({
+      status: 'Arrived',
+      arrivedAt: now,
+      qrCodeDataUrl: qrCode,
+      updatedAt: now,
+    }).where(eq(parcelRequests.id, id)).returning();
+
+    const [user] = await db.select().from(users).where(eq(users.id, parcel.userId)).limit(1);
+    const [station] = await db.select().from(stations).where(eq(stations.id, parcel.stationId)).limit(1);
+
+    sendArrivalEmail({
+      email: user?.email,
       referenceNumber: parcel.referenceNumber,
-      stationName: station?.name,
-      stationAddress: station?.address,
-      stationEmail: station?.email,
-      qrCodeDataUrl,
-    });
+      stationName: station?.name || parcel.stationId,
+      stationAddress: station?.address || '',
+      qrCodeDataUrl: qrCode,
+      seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+    }).catch(err => console.error('Arrival email error:', err.message));
 
-    res.json(parcel.toJSON());
+    return c.json(updated);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to update parcel status' } });
-  }
-});
-
-// GET /api/station/parcels/lookup/:ref
-router.get('/lookup/:ref', async (req, res) => {
-  try {
-    const parcel = await ParcelRequest.findOne({
-      where: { referenceNumber: req.params.ref, stationId: req.user.stationId },
-      include: [{ model: User, attributes: ['email', 'firstName', 'lastName', 'phone'] }],
-    });
-    if (!parcel) {
-      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'No active parcel found for this reference number' } });
-    }
-    res.json({ ...parcel.toJSON(), seafarerEmail: parcel.User?.email, seafarerName: parcel.User ? `${parcel.User.firstName} ${parcel.User.lastName}` : '', seafarerPhone: parcel.User?.phone });
-  } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Lookup failed' } });
+    console.error('Arrive parcel error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to mark parcel as arrived' } }, 500);
   }
 });
 
 // POST /api/station/parcels/:id/deliver
-router.post('/:id/deliver', async (req, res) => {
+stationParcelsRouter.post('/:id/deliver', async (c) => {
   try {
-    const { signatureDataUrl } = req.body;
+    const staff = c.get('user');
+    const id = parseInt(c.req.param('id'), 10);
+    const { signatureDataUrl } = await c.req.json();
+
     if (!signatureDataUrl) {
-      return res.status(400).json({ error: { code: 'MISSING_SIGNATURE', message: 'Signature is required' } });
+      return c.json({ error: { code: 'MISSING_FIELDS', message: 'signatureDataUrl is required' } }, 400);
     }
 
-    const parcel = await ParcelRequest.findOne({
-      where: { id: req.params.id, stationId: req.user.stationId },
-      include: [{ model: User, attributes: ['email', 'firstName', 'lastName'] }],
-    });
-    if (!parcel) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } });
+    const db = getDb(c.env);
+    const [parcel] = await db.select().from(parcelRequests).where(
+      and(eq(parcelRequests.id, id), eq(parcelRequests.stationId, staff.stationId))
+    ).limit(1);
+
+    if (!parcel) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } }, 404);
+    }
 
     if (!validateTransition(parcel.status, 'Delivered')) {
-      return res.status(409).json({ error: { code: 'INVALID_TRANSITION', message: `Cannot transition from ${parcel.status} to Delivered` } });
+      return c.json({ error: { code: 'INVALID_TRANSITION', message: `Cannot transition from ${parcel.status} to Delivered` } }, 409);
     }
 
-    const deliveredAt = new Date();
-    await parcel.update({ status: 'Delivered', deliveredAt, signatureDataUrl });
+    let storedSignature = signatureDataUrl;
 
-    const station = findStation(req, parcel.stationId);
-    await sendDeliveryEmail({
-      email: parcel.User?.email,
+    // If Cloudflare R2 bucket binding is configured, upload the signature to R2
+    if (c.env.BUCKET && signatureDataUrl.startsWith('data:image/')) {
+      try {
+        const base64Data = signatureDataUrl.split(',')[1];
+        const buffer = Buffer.from(base64Data, 'base64');
+        const filename = `signatures/sig-${parcel.referenceNumber}-${Date.now()}.png`;
+        await c.env.BUCKET.put(filename, buffer, {
+          httpMetadata: { contentType: 'image/png' },
+        });
+        storedSignature = `/uploads/${filename}`;
+      } catch (r2Err) {
+        console.error('R2 upload warning, falling back to base64:', r2Err.message);
+      }
+    }
+
+    const now = new Date().toISOString();
+    const [updated] = await db.update(parcelRequests).set({
+      status: 'Delivered',
+      deliveredAt: now,
+      signatureDataUrl: storedSignature,
+      updatedAt: now,
+    }).where(eq(parcelRequests.id, id)).returning();
+
+    const [user] = await db.select().from(users).where(eq(users.id, parcel.userId)).limit(1);
+    const [station] = await db.select().from(stations).where(eq(stations.id, parcel.stationId)).limit(1);
+
+    sendDeliveryEmail({
+      email: user?.email,
       referenceNumber: parcel.referenceNumber,
-      stationName: station?.name,
-      stationEmail: station?.email,
-      size: parcel.size,
-      deliveredAt,
-      signatureDataUrl,
-    });
+      stationName: station?.name || parcel.stationId,
+      deliveredAt: now,
+      seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+    }).catch(err => console.error('Delivery email error:', err.message));
 
-    res.json({ id: parcel.id, status: 'Delivered', deliveredAt });
+    return c.json(updated);
   } catch (err) {
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to confirm delivery' } });
+    console.error('Deliver parcel error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to deliver parcel' } }, 500);
   }
 });
 
-module.exports = router;
-
-router.patch('/:id/notes', async (req, res) => {
+// GET /api/station/parcels/:id/receipt
+stationParcelsRouter.get('/:id/receipt', async (c) => {
   try {
-    const { notes } = req.body;
-    
-    const parcel = await ParcelRequest.findOne({
-      where: { id: req.params.id, stationId: req.user.stationId },
-    });
-    
+    const staff = c.get('user');
+    const id = parseInt(c.req.param('id'), 10);
+    const db = getDb(c.env);
+
+    const [parcel] = await db.select().from(parcelRequests).where(
+      and(eq(parcelRequests.id, id), eq(parcelRequests.stationId, staff.stationId))
+    ).limit(1);
+
     if (!parcel) {
-      return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } });
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } }, 404);
     }
 
-    await parcel.update({ internalNotes: notes || null });
+    if (parcel.status !== 'Delivered') {
+      return c.json({ error: { code: 'NOT_DELIVERED', message: 'Receipt only available for delivered parcels' } }, 400);
+    }
 
-    res.json({ id: parcel.id, internalNotes: parcel.internalNotes });
+    const [station] = await db.select().from(stations).where(eq(stations.id, parcel.stationId)).limit(1);
+    const pdfBuffer = await generateReceiptPDF({
+      referenceNumber: parcel.referenceNumber,
+      stationName: station?.name || parcel.stationId,
+      size: parcel.size,
+      handlingFeeCents: parcel.handlingFeeCents,
+      deliveredAt: parcel.deliveredAt,
+      signatureDataUrl: parcel.signatureDataUrl,
+    });
+
+    return new Response(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename=receipt-${parcel.referenceNumber}.pdf`,
+      },
+    });
+  } catch (err) {
+    console.error('Receipt error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to generate receipt' } }, 500);
+  }
+});
+
+// PATCH /api/station/parcels/:id/notes
+stationParcelsRouter.patch('/:id/notes', async (c) => {
+  try {
+    const staff = c.get('user');
+    const id = parseInt(c.req.param('id'), 10);
+    const { internalNotes } = await c.req.json();
+    const db = getDb(c.env);
+
+    const [updated] = await db.update(parcelRequests).set({
+      internalNotes: internalNotes || null,
+      updatedAt: new Date().toISOString(),
+    }).where(
+      and(eq(parcelRequests.id, id), eq(parcelRequests.stationId, staff.stationId))
+    ).returning();
+
+    if (!updated) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'Parcel not found' } }, 404);
+    }
+
+    return c.json(updated);
   } catch (err) {
     console.error('Update notes error:', err);
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'Failed to update notes' } });
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to update notes' } }, 500);
   }
 });
+
+module.exports = stationParcelsRouter;

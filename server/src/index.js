@@ -1,69 +1,88 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const { syncDatabase, Station } = require('./models');
+﻿const { Hono } = require('hono');
+const { cors } = require('hono/cors');
+
 const auth = require('./middleware/auth');
 const stationAuth = require('./middleware/stationAuth');
 
-const app = express();
-const PORT = process.env.PORT || 3001;
+const authRouter = require('./routes/auth');
+const stationAuthRouter = require('./routes/stationAuth');
+const stationsRouter = require('./routes/stations');
+const preferencesRouter = require('./routes/preferences');
+const parcelsRouter = require('./routes/parcels');
+const stationParcelsRouter = require('./routes/stationParcels');
+const reportsRouter = require('./routes/reports');
 
-// Middleware
-const allowedOrigins = process.env.FRONTEND_URL 
-  ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : ['http://localhost:5173'];
+const app = new Hono();
 
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// CORS configuration matching your frontend
+app.use('*', cors({
+  origin: (origin) => origin || '*',
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'X-Station-Id'],
+  exposeHeaders: ['Content-Disposition'],
   credentials: true,
 }));
-app.use(express.json({ limit: '10mb' }));
 
-// Serve uploaded images
-app.use('/uploads', express.static('uploads'));
-
-// Start
-syncDatabase().then(async () => {
-  // Load station config from DB
-  const stations = await Station.findAll();
-  app.locals.stations = stations.map(s => s.toJSON());
-  console.log(`Loaded ${app.locals.stations.length} station(s) from database`);
-
-  // Health check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), environment: process.env.NODE_ENV || 'development' });
+// Health check endpoint
+app.get('/api/health', (c) => {
+  return c.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: c.env?.ENVIRONMENT || 'development',
+    runtime: 'cloudflare-workers-hono',
   });
-
-  // Routes
-  app.use('/api/auth', require('./routes/auth'));
-  app.use('/api/auth/station', require('./routes/stationAuth'));
-  app.use('/api/stations', auth, require('./routes/stations'));
-  app.use('/api/preferences/stations', auth, require('./routes/preferences'));
-  app.use('/api/parcels', auth, require('./routes/parcels'));
-  app.use('/api/station/parcels', stationAuth, require('./routes/stationParcels'));
-  app.use('/api/station/reports', stationAuth, require('./routes/reports'));
-
-  // Global error handler
-  app.use((err, req, res, _next) => {
-    console.error(err.stack);
-    res.status(500).json({ error: { code: 'SERVER_ERROR', message: 'An unexpected error occurred' } });
-  });
-
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-  });
-}).catch(err => {
-  console.error('Failed to sync database:', err);
-  process.exit(1);
 });
 
-module.exports = app;
+// Serve uploaded assets (signatures, documents) from Cloudflare R2
+app.get('/uploads/*', async (c) => {
+  const key = c.req.path.replace(/^\/uploads\//, '');
+  if (c.env?.BUCKET) {
+    const object = await c.env.BUCKET.get(key);
+    if (object) {
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set('etag', object.httpEtag);
+      return new Response(object.body, { headers });
+    }
+  }
+  return c.text('Asset not found', 404);
+});
+
+// Public authentication routes
+app.route('/api/auth', authRouter);
+app.route('/api/auth/station', stationAuthRouter);
+
+// Seafarer authenticated routes
+app.use('/api/stations', auth());
+app.use('/api/stations/*', auth());
+app.route('/api/stations', stationsRouter);
+
+app.use('/api/preferences/stations', auth());
+app.use('/api/preferences/stations/*', auth());
+app.route('/api/preferences/stations', preferencesRouter);
+
+app.use('/api/parcels', auth());
+app.use('/api/parcels/*', auth());
+app.route('/api/parcels', parcelsRouter);
+
+// Station staff & Admin authenticated routes
+app.use('/api/station/parcels', stationAuth());
+app.use('/api/station/parcels/*', stationAuth());
+app.route('/api/station/parcels', stationParcelsRouter);
+
+app.use('/api/station/reports', stationAuth());
+app.use('/api/station/reports/*', stationAuth());
+app.route('/api/station/reports', reportsRouter);
+
+// Global error handler
+app.onError((err, c) => {
+  console.error('Unhandled worker error:', err);
+  return c.json({
+    error: {
+      code: 'SERVER_ERROR',
+      message: err.message || 'An unexpected error occurred',
+    },
+  }, 500);
+});
+
+export default app;
