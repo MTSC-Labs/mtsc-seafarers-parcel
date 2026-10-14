@@ -39,3 +39,5 @@ pnpm-debug.log*
 **/.nyc_output
 
 .kiro/*
+.wrangler/
+
