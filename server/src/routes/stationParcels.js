@@ -223,14 +223,18 @@ stationParcelsRouter.patch('/:id/arrived', async (c) => {
     const [user] = await db.select().from(users).where(eq(users.id, parcel.userId)).limit(1);
     const [station] = await db.select().from(stations).where(eq(stations.id, parcel.stationId)).limit(1);
 
-    sendArrivalEmail({
-      email: user?.email,
-      referenceNumber: parcel.referenceNumber,
-      stationName: station?.name || parcel.stationId,
-      stationAddress: station?.address || '',
-      qrCodeDataUrl: qrCode,
-      seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
-    }).catch(err => console.error('Arrival email error:', err.message));
+    try {
+      await sendArrivalEmail({
+        email: user?.email,
+        referenceNumber: parcel.referenceNumber,
+        stationName: station?.name || parcel.stationId,
+        stationAddress: station?.address || '',
+        qrCodeDataUrl: qrCode,
+        seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+      });
+    } catch (err) {
+      console.error('Arrival email error:', err.message);
+    }
 
     return c.json(updated);
   } catch (err) {
@@ -292,13 +296,17 @@ stationParcelsRouter.post('/:id/deliver', async (c) => {
     const [user] = await db.select().from(users).where(eq(users.id, parcel.userId)).limit(1);
     const [station] = await db.select().from(stations).where(eq(stations.id, parcel.stationId)).limit(1);
 
-    sendDeliveryEmail({
-      email: user?.email,
-      referenceNumber: parcel.referenceNumber,
-      stationName: station?.name || parcel.stationId,
-      deliveredAt: now,
-      seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
-    }).catch(err => console.error('Delivery email error:', err.message));
+    try {
+      await sendDeliveryEmail({
+        email: user?.email,
+        referenceNumber: parcel.referenceNumber,
+        stationName: station?.name || parcel.stationId,
+        deliveredAt: now,
+        seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+      });
+    } catch (err) {
+      console.error('Delivery email error:', err.message);
+    }
 
     return c.json(updated);
   } catch (err) {

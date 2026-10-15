@@ -128,30 +128,46 @@ function pickFirstEmail(emailString) {
   return emails[0];
 }
 
-// Save base64 image to uploads folder
-function saveImage(base64Data, referenceNumber, type) {
+// Save base64 image to uploads folder or Cloudflare R2
+async function saveImage(base64Data, referenceNumber, type) {
+  if (!base64Data) return null;
   try {
-    const uploadsDir = path.join(__dirname, "..", "..", "uploads");
+    const bucket = globalThis.__ENV__?.BUCKET || globalThis.__ENV__?.mtsc_parcel_uploads;
+    const base64Image = base64Data.split(';base64,').pop();
+    const isSvg = base64Data.includes('svg');
+    const ext = isSvg ? 'svg' : 'png';
+    const filename = `${referenceNumber}_${type}.${ext}`;
 
-    // Create uploads directory if it doesn't exist
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+    if (bucket) {
+      const binary = atob(base64Image);
+      const buffer = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        buffer[i] = binary.charCodeAt(i);
+      }
+      await bucket.put(filename, buffer, {
+        httpMetadata: { contentType: isSvg ? 'image/svg+xml' : 'image/png' },
+      });
+      const backendUrl =
+        globalThis.__ENV__?.BACKEND_URL ||
+        (typeof process !== 'undefined' && process.env?.BACKEND_URL) ||
+        'https://mtsc-seafarers-parcel-backend.cloudgenz-it.workers.dev';
+      return `${backendUrl}/uploads/${filename}`;
     }
 
-    // Extract base64 data (remove data:image/png;base64, prefix)
-    const base64Image = base64Data.split(";base64,").pop();
-    const filename = `${referenceNumber}_${type}.png`;
-    const filepath = path.join(uploadsDir, filename);
+    if (typeof __dirname !== 'undefined' && typeof fs !== 'undefined' && fs.writeFileSync) {
+      const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+      const filepath = path.join(uploadsDir, filename);
+      fs.writeFileSync(filepath, base64Image, { encoding: 'base64' });
+      const backendUrl =
+        (typeof process !== 'undefined' && process.env?.BACKEND_URL) ||
+        'https://mtsc-seafarers-parcel-backend.cloudgenz-it.workers.dev';
+      return `${backendUrl}/uploads/${filename}`;
+    }
 
-    // Save file
-    fs.writeFileSync(filepath, base64Image, { encoding: "base64" });
-
-    // Return URL (using BACKEND_URL from env or construct it)
-    const backendUrl =
-      process.env.BACKEND_URL ||
-      process.env.FRONTEND_URL?.replace(/:\d+$/, ":3001") ||
-      "http://localhost:3001";
-    return `${backendUrl}/uploads/${filename}`;
+    return null;
   } catch (error) {
     console.error(`Failed to save ${type} image:`, error.message);
     return null;
@@ -206,7 +222,7 @@ function resetPasswordEmailHtml({ firstName, otp }) {
 
 async function sendArrivalEmail(parcelData) {
   // Save QR code image and get URL
-  const qrCodeUrl = saveImage(
+  const qrCodeUrl = await saveImage(
     parcelData.qrCodeDataUrl,
     parcelData.referenceNumber,
     "QR",
@@ -252,7 +268,7 @@ async function sendArrivalEmail(parcelData) {
 
 async function sendDeliveryEmail(parcelData) {
   // Save signature image and get URL
-  const signatureUrl = saveImage(
+  const signatureUrl = await saveImage(
     parcelData.signatureDataUrl,
     parcelData.referenceNumber,
     "signature",
