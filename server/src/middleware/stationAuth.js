@@ -16,12 +16,10 @@ function stationAuth() {
         return c.json({ error: { code: 'FORBIDDEN', message: 'Staff or Admin access required' } }, 403);
       }
 
-      // If admin, they can override the stationId via header
+      // If admin, they can override the stationId via header, or default to their assigned/first station
       if (decoded.role === 'admin') {
         const targetStationId = c.req.header('x-station-id');
-        if (targetStationId) {
-          decoded.stationId = targetStationId;
-        }
+        decoded.stationId = targetStationId || decoded.stationId || 'halifax-port';
       }
 
       c.set('user', decoded);

@@ -1,7 +1,7 @@
 ﻿const { Hono } = require('hono');
 const { eq, and, gte, lt } = require('drizzle-orm');
 const { getDb, parcelRequests, stations } = require('../db');
-const PDFDocument = require('pdfkit');
+const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
 
 const reportsRouter = new Hono();
 
@@ -75,76 +75,227 @@ reportsRouter.get('/pdf', async (c) => {
     const [station] = await db.select().from(stations).where(eq(stations.id, staff.stationId)).limit(1);
     const stationName = station?.name || staff.stationId;
 
-    const pdfBuffer = await new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 50, bufferPages: true });
-      const chunks = [];
-      doc.on('data', chunk => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([595.28, 841.89]); // A4
+    const { width, height } = page.getSize();
 
-      const m = 50;
-      const cw = doc.page.width - m * 2;
+    const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-      // Header
-      doc.rect(0, 0, doc.page.width, 90).fill('#0f2744');
-      doc.fontSize(18).fillColor('#fbbf24').text('Parcel Report', m, 24, { continued: false });
-      doc.fontSize(9).fillColor('#94a3b8').text('Seafarers Parcel Pickup Service', m, 48, { continued: false });
-      doc.fontSize(12).fillColor('#ffffff').text(`${MONTHS[month - 1]} ${year}`, 0, 28, { width: doc.page.width - m, align: 'right', continued: false });
-      doc.fontSize(9).fillColor('#94a3b8').text(stationName, 0, 48, { width: doc.page.width - m, align: 'right', continued: false });
+    const m = 50;
+    const contentWidth = width - m * 2;
 
-      // Summary
-      let y = 110;
-      doc.fontSize(10).fillColor('#94a3b8').text('SUMMARY', m, y, { continued: false });
-      y += 18;
-      doc.moveTo(m, y).lineTo(m + cw, y).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
-      y += 10;
-
-      doc.save(); doc.rect(m, y, cw, 50).fill('#f0f9ff'); doc.restore();
-      doc.fontSize(22).fillColor('#0f172a').font('Helvetica-Bold').text(String(totalCount), m + 14, y + 8, { continued: false });
-      doc.fontSize(9).fillColor('#64748b').font('Helvetica').text('Total Parcels', m + 14, y + 34, { continued: false });
-
-      // Breakdown table
-      y += 70;
-      doc.fontSize(10).fillColor('#94a3b8').text('BREAKDOWN BY SIZE', m, y, { continued: false });
-      y += 18;
-      doc.moveTo(m, y).lineTo(m + cw, y).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
-      y += 10;
-
-      // Table header
-      doc.fontSize(9).fillColor('#94a3b8').font('Helvetica-Bold');
-      doc.text('SIZE', m + 10, y, { continued: false });
-      doc.text('PARCELS', m + 200, y, { continued: false });
-      doc.font('Helvetica');
-      y += 20;
-
-      ['Small', 'Medium', 'Large', 'Extra Large'].forEach((size, i) => {
-        if (i % 2 === 0) { doc.save(); doc.rect(m, y - 4, cw, 24).fill('#f8fafc'); doc.restore(); }
-        doc.fontSize(11).fillColor('#0f172a').font('Helvetica-Bold').text(size, m + 10, y, { continued: false });
-        doc.font('Helvetica').fillColor('#475569').text(String(breakdown[size].count), m + 200, y, { continued: false });
-        doc.font('Helvetica');
-        y += 24;
-      });
-
-      // Total row
-      y += 6;
-      doc.rect(m, y, cw, 30).fill('#fffbeb');
-      doc.rect(m, y, cw, 30).lineWidth(0.5).strokeColor('#fde68a').stroke();
-      doc.fontSize(11).fillColor('#92400e').font('Helvetica-Bold').text('TOTAL', m + 10, y + 8, { continued: false });
-      doc.text(String(totalCount), m + 200, y + 8, { continued: false });
-      doc.font('Helvetica');
-
-      // Footer
-      y = 680;
-      doc.moveTo(m, y).lineTo(m + cw, y).lineWidth(0.5).strokeColor('#e2e8f0').stroke();
-      y += 10;
-      doc.fontSize(8).fillColor('#94a3b8').text(`Generated on ${new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}`, m, y, { width: cw, align: 'center', continued: false });
-      y += 12;
-      doc.text('Seafarers Parcel Pickup Service — Mission to Seafarers Canada — mtsc.ca', m, y, { width: cw, align: 'center', continued: false });
-
-      doc.end();
+    // Header Banner
+    page.drawRectangle({
+      x: 0,
+      y: height - 90,
+      width,
+      height: 90,
+      color: rgb(15 / 255, 39 / 255, 68 / 255), // #0f2744
     });
 
-    return new Response(pdfBuffer, {
+    page.drawText('Parcel Report', {
+      x: m,
+      y: height - 42,
+      size: 18,
+      font: fontBold,
+      color: rgb(251 / 255, 191 / 255, 36 / 255), // #fbbf24
+    });
+
+    page.drawText('Seafarers Parcel Pickup Service', {
+      x: m,
+      y: height - 60,
+      size: 9,
+      font: fontRegular,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    const dateHeader = `${MONTHS[month - 1]} ${year}`;
+    page.drawText(dateHeader, {
+      x: width - m - 120,
+      y: height - 42,
+      size: 12,
+      font: fontBold,
+      color: rgb(1, 1, 1),
+    });
+
+    page.drawText(stationName, {
+      x: width - m - 120,
+      y: height - 60,
+      size: 9,
+      font: fontRegular,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    // Summary Section
+    let y = height - 130;
+    page.drawText('SUMMARY', {
+      x: m,
+      y,
+      size: 10,
+      font: fontRegular,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    page.drawLine({
+      start: { x: m, y: y - 8 },
+      end: { x: m + contentWidth, y: y - 8 },
+      thickness: 0.5,
+      color: rgb(226 / 255, 232 / 255, 240 / 255),
+    });
+
+    y -= 60;
+    page.drawRectangle({
+      x: m,
+      y,
+      width: contentWidth,
+      height: 50,
+      color: rgb(240 / 255, 249 / 255, 255 / 255), // #f0f9ff
+    });
+
+    page.drawText(String(totalCount), {
+      x: m + 14,
+      y: y + 22,
+      size: 22,
+      font: fontBold,
+      color: rgb(15 / 255, 23 / 255, 42 / 255),
+    });
+
+    page.drawText('Total Parcels', {
+      x: m + 14,
+      y: y + 8,
+      size: 9,
+      font: fontRegular,
+      color: rgb(100 / 255, 116 / 255, 139 / 255),
+    });
+
+    // Breakdown By Size Section
+    y -= 45;
+    page.drawText('BREAKDOWN BY SIZE', {
+      x: m,
+      y,
+      size: 10,
+      font: fontRegular,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    page.drawLine({
+      start: { x: m, y: y - 8 },
+      end: { x: m + contentWidth, y: y - 8 },
+      thickness: 0.5,
+      color: rgb(226 / 255, 232 / 255, 240 / 255),
+    });
+
+    // Table Header
+    y -= 25;
+    page.drawText('SIZE', {
+      x: m + 10,
+      y,
+      size: 9,
+      font: fontBold,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    page.drawText('PARCELS', {
+      x: m + 200,
+      y,
+      size: 9,
+      font: fontBold,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    const sizes = ['Small', 'Medium', 'Large', 'Extra Large'];
+    y -= 22;
+
+    sizes.forEach((sizeName, i) => {
+      if (i % 2 === 0) {
+        page.drawRectangle({
+          x: m,
+          y: y - 5,
+          width: contentWidth,
+          height: 22,
+          color: rgb(248 / 255, 250 / 255, 252 / 255),
+        });
+      }
+
+      page.drawText(sizeName, {
+        x: m + 10,
+        y,
+        size: 11,
+        font: fontBold,
+        color: rgb(15 / 255, 23 / 255, 42 / 255),
+      });
+
+      page.drawText(String(breakdown[sizeName]?.count || 0), {
+        x: m + 200,
+        y,
+        size: 11,
+        font: fontRegular,
+        color: rgb(71 / 255, 85 / 255, 105 / 255),
+      });
+
+      y -= 24;
+    });
+
+    // Total Row
+    y -= 6;
+    page.drawRectangle({
+      x: m,
+      y: y - 6,
+      width: contentWidth,
+      height: 28,
+      color: rgb(255 / 255, 251 / 255, 235 / 255), // #fffbeb
+      borderColor: rgb(253 / 255, 230 / 255, 138 / 255), // #fde68a
+      borderWidth: 0.5,
+    });
+
+    page.drawText('TOTAL', {
+      x: m + 10,
+      y: y + 2,
+      size: 11,
+      font: fontBold,
+      color: rgb(146 / 255, 64 / 255, 14 / 255), // #92400e
+    });
+
+    page.drawText(String(totalCount), {
+      x: m + 200,
+      y: y + 2,
+      size: 11,
+      font: fontBold,
+      color: rgb(146 / 255, 64 / 255, 14 / 255),
+    });
+
+    // Footer
+    const footerY = 80;
+    page.drawLine({
+      start: { x: m, y: footerY + 20 },
+      end: { x: m + contentWidth, y: footerY + 20 },
+      thickness: 0.5,
+      color: rgb(226 / 255, 232 / 255, 240 / 255),
+    });
+
+    const footer1 = `Generated on ${new Date().toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+    const footer2 = 'Seafarers Parcel Pickup Service — Mission to Seafarers Canada — mtsc.ca';
+
+    page.drawText(footer1, {
+      x: (width - fontRegular.widthOfTextAtSize(footer1, 8)) / 2,
+      y: footerY + 5,
+      size: 8,
+      font: fontRegular,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    page.drawText(footer2, {
+      x: (width - fontRegular.widthOfTextAtSize(footer2, 8)) / 2,
+      y: footerY - 10,
+      size: 8,
+      font: fontRegular,
+      color: rgb(148 / 255, 163 / 255, 184 / 255),
+    });
+
+    const pdfBytes = await pdfDoc.save();
+
+    return new Response(pdfBytes, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
