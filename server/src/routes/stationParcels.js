@@ -8,8 +8,17 @@ const { sendArrivalEmail, sendDeliveryEmail } = require('../services/emailServic
 
 const stationParcelsRouter = new Hono();
 
+function getBackendUrl(c) {
+  return (
+    c?.env?.BACKEND_URL ||
+    globalThis.__ENV__?.BACKEND_URL ||
+    (typeof process !== 'undefined' ? process.env?.BACKEND_URL : '') ||
+    (c?.req?.url ? new URL(c.req.url).origin : '')
+  );
+}
+
 // Helper to attach seafarer/user details to parcel items
-async function enrichParcelsWithUser(db, parcels) {
+async function enrichParcelsWithUser(db, parcels, c) {
   if (!parcels || parcels.length === 0) return [];
   const userIds = [...new Set(parcels.map(p => p.userId))];
   const userMap = {};
@@ -18,10 +27,17 @@ async function enrichParcelsWithUser(db, parcels) {
     userRecords.forEach(u => { userMap[u.id] = u; });
   }
 
+  const backendUrl = getBackendUrl(c);
+
   return parcels.map(p => {
     const u = userMap[p.userId];
+    let signatureDataUrl = p.signatureDataUrl;
+    if (signatureDataUrl && signatureDataUrl.startsWith('/uploads/') && backendUrl) {
+      signatureDataUrl = `${backendUrl}${signatureDataUrl}`;
+    }
     return {
       ...p,
+      signatureDataUrl,
       seafarerEmail: u?.email || null,
       seafarerName: u ? `${u.firstName} ${u.lastName}` : '',
       seafarerPhone: u?.phone || null,
@@ -43,7 +59,7 @@ stationParcelsRouter.get('/incoming', async (c) => {
       ))
       .orderBy(asc(parcelRequests.estimatedArrival), desc(parcelRequests.createdAt));
 
-    let result = await enrichParcelsWithUser(db, parcels);
+    let result = await enrichParcelsWithUser(db, parcels, c);
 
     if (search) {
       const q = search.toLowerCase();
@@ -76,7 +92,7 @@ stationParcelsRouter.get('/pending-pickup', async (c) => {
       ))
       .orderBy(desc(parcelRequests.arrivedAt));
 
-    let result = await enrichParcelsWithUser(db, parcels);
+    let result = await enrichParcelsWithUser(db, parcels, c);
 
     if (search) {
       const q = search.toLowerCase();
@@ -108,7 +124,7 @@ stationParcelsRouter.get('/delivered', async (c) => {
       ))
       .orderBy(desc(parcelRequests.deliveredAt));
 
-    let result = await enrichParcelsWithUser(db, parcels);
+    let result = await enrichParcelsWithUser(db, parcels, c);
 
     if (search) {
       const q = search.toLowerCase();
@@ -140,7 +156,7 @@ stationParcelsRouter.get('/completed', async (c) => {
       ))
       .orderBy(desc(parcelRequests.deliveredAt));
 
-    let result = await enrichParcelsWithUser(db, parcels);
+    let result = await enrichParcelsWithUser(db, parcels, c);
 
     if (search) {
       const q = search.toLowerCase();
@@ -178,9 +194,15 @@ stationParcelsRouter.get('/lookup/:ref', async (c) => {
     }
 
     const [user] = await db.select().from(users).where(eq(users.id, parcel.userId)).limit(1);
+    const backendUrl = getBackendUrl(c);
+    let signatureDataUrl = parcel.signatureDataUrl;
+    if (signatureDataUrl && signatureDataUrl.startsWith('/uploads/') && backendUrl) {
+      signatureDataUrl = `${backendUrl}${signatureDataUrl}`;
+    }
 
     return c.json({
       ...parcel,
+      signatureDataUrl,
       seafarerEmail: user?.email || null,
       seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
       seafarerPhone: user?.phone || null,
@@ -267,6 +289,7 @@ stationParcelsRouter.post('/:id/deliver', async (c) => {
       return c.json({ error: { code: 'INVALID_TRANSITION', message: `Cannot transition from ${parcel.status} to Delivered` } }, 409);
     }
 
+    const backendUrl = getBackendUrl(c);
     let storedSignature = signatureDataUrl;
 
     // If Cloudflare R2 bucket binding is configured, upload the signature to R2
@@ -274,12 +297,16 @@ stationParcelsRouter.post('/:id/deliver', async (c) => {
     if (bucket && signatureDataUrl.startsWith('data:image/')) {
       try {
         const base64Data = signatureDataUrl.split(',')[1];
-        const buffer = Buffer.from(base64Data, 'base64');
+        const binary = atob(base64Data);
+        const buffer = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          buffer[i] = binary.charCodeAt(i);
+        }
         const filename = `signatures/sig-${parcel.referenceNumber}-${Date.now()}.png`;
         await bucket.put(filename, buffer, {
           httpMetadata: { contentType: 'image/png' },
         });
-        storedSignature = `/uploads/${filename}`;
+        storedSignature = backendUrl ? `${backendUrl}/uploads/${filename}` : `/uploads/${filename}`;
       } catch (r2Err) {
         console.error('R2 upload warning, falling back to base64:', r2Err.message);
       }
@@ -301,8 +328,11 @@ stationParcelsRouter.post('/:id/deliver', async (c) => {
         email: user?.email,
         referenceNumber: parcel.referenceNumber,
         stationName: station?.name || parcel.stationId,
+        stationEmail: station?.email,
+        size: parcel.size,
         deliveredAt: now,
         seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+        signatureDataUrl: storedSignature,
       });
     } catch (err) {
       console.error('Delivery email error:', err.message);

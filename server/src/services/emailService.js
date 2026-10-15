@@ -128,9 +128,25 @@ function pickFirstEmail(emailString) {
   return emails[0];
 }
 
+function getBackendUrl() {
+  return (
+    globalThis.__ENV__?.BACKEND_URL ||
+    (typeof process !== 'undefined' && process.env?.BACKEND_URL) ||
+    ''
+  );
+}
+
 // Save base64 image to uploads folder or Cloudflare R2
 async function saveImage(base64Data, referenceNumber, type) {
   if (!base64Data) return null;
+  const backendUrl = getBackendUrl();
+
+  if (base64Data.startsWith('http://') || base64Data.startsWith('https://')) {
+    return base64Data;
+  }
+  if (base64Data.startsWith('/uploads/')) {
+    return backendUrl ? `${backendUrl}${base64Data}` : base64Data;
+  }
   try {
     const bucket = globalThis.__ENV__?.BUCKET || globalThis.__ENV__?.mtsc_parcel_uploads;
     const base64Image = base64Data.split(';base64,').pop();
@@ -147,11 +163,7 @@ async function saveImage(base64Data, referenceNumber, type) {
       await bucket.put(filename, buffer, {
         httpMetadata: { contentType: isSvg ? 'image/svg+xml' : 'image/png' },
       });
-      const backendUrl =
-        globalThis.__ENV__?.BACKEND_URL ||
-        (typeof process !== 'undefined' && process.env?.BACKEND_URL) ||
-        'https://mtsc-seafarers-parcel-backend.cloudgenz-it.workers.dev';
-      return `${backendUrl}/uploads/${filename}`;
+      return backendUrl ? `${backendUrl}/uploads/${filename}` : `/uploads/${filename}`;
     }
 
     if (typeof __dirname !== 'undefined' && typeof fs !== 'undefined' && fs.writeFileSync) {
@@ -161,10 +173,7 @@ async function saveImage(base64Data, referenceNumber, type) {
       }
       const filepath = path.join(uploadsDir, filename);
       fs.writeFileSync(filepath, base64Image, { encoding: 'base64' });
-      const backendUrl =
-        (typeof process !== 'undefined' && process.env?.BACKEND_URL) ||
-        'https://mtsc-seafarers-parcel-backend.cloudgenz-it.workers.dev';
-      return `${backendUrl}/uploads/${filename}`;
+      return backendUrl ? `${backendUrl}/uploads/${filename}` : `/uploads/${filename}`;
     }
 
     return null;
