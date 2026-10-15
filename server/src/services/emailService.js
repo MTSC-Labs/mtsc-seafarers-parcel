@@ -26,7 +26,11 @@ function getTransporter() {
 
 // Send email via Brevo API
 async function sendBrevoEmail({ from, to, cc, bcc, replyTo, subject, html }) {
-  if (!process.env.BREVO_API_KEY) {
+  const brevoApiKey =
+    (typeof process !== 'undefined' && process.env?.BREVO_API_KEY) ||
+    globalThis.__ENV__?.BREVO_API_KEY;
+
+  if (!brevoApiKey) {
     console.error("BREVO_API_KEY not configured");
     return false;
   }
@@ -68,7 +72,7 @@ async function sendBrevoEmail({ from, to, cc, bcc, replyTo, subject, html }) {
       {
         headers: {
           accept: "application/json",
-          "api-key": process.env.BREVO_API_KEY,
+          "api-key": brevoApiKey,
           "content-type": "application/json",
         },
       },

@@ -16,6 +16,15 @@ const app = new Hono();
 
 // CORS configuration supporting FRONTEND_URL, Cloudflare Pages, and custom domains
 app.use('*', async (c, next) => {
+  if (c.env) {
+    globalThis.__ENV__ = c.env;
+    if (typeof process !== 'undefined') {
+      try {
+        if (!process.env) process.env = {};
+        Object.assign(process.env, c.env);
+      } catch (e) {}
+    }
+  }
   const envOrigins = c.env?.FRONTEND_URL
     ? c.env.FRONTEND_URL.split(',').map((u) => u.trim())
     : [];

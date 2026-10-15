@@ -126,8 +126,73 @@ stationParcelsRouter.get('/delivered', async (c) => {
   }
 });
 
-// PATCH /api/station/parcels/:id/arrive
-stationParcelsRouter.patch('/:id/arrive', async (c) => {
+// GET /api/station/parcels/completed (alias - frontend CompletedPage uses this)
+stationParcelsRouter.get('/completed', async (c) => {
+  try {
+    const staff = c.get('user');
+    const { search } = c.req.query();
+    const db = getDb(c.env);
+
+    const parcels = await db.select().from(parcelRequests)
+      .where(and(
+        eq(parcelRequests.stationId, staff.stationId),
+        eq(parcelRequests.status, 'Delivered')
+      ))
+      .orderBy(desc(parcelRequests.deliveredAt));
+
+    let result = await enrichParcelsWithUser(db, parcels);
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(p =>
+        p.seafarerName?.toLowerCase().includes(q) ||
+        p.seafarerEmail?.toLowerCase().includes(q) ||
+        p.referenceNumber?.toLowerCase().includes(q) ||
+        p.shippingFrom?.toLowerCase().includes(q)
+      );
+    }
+
+    return c.json(result);
+  } catch (err) {
+    console.error('Completed parcels error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Failed to fetch completed parcels' } }, 500);
+  }
+});
+
+// GET /api/station/parcels/lookup/:ref
+stationParcelsRouter.get('/lookup/:ref', async (c) => {
+  try {
+    const staff = c.get('user');
+    const ref = c.req.param('ref');
+    const db = getDb(c.env);
+
+    const [parcel] = await db.select().from(parcelRequests).where(
+      and(
+        eq(parcelRequests.referenceNumber, ref),
+        eq(parcelRequests.stationId, staff.stationId)
+      )
+    ).limit(1);
+
+    if (!parcel) {
+      return c.json({ error: { code: 'NOT_FOUND', message: 'No active parcel found for this reference number' } }, 404);
+    }
+
+    const [user] = await db.select().from(users).where(eq(users.id, parcel.userId)).limit(1);
+
+    return c.json({
+      ...parcel,
+      seafarerEmail: user?.email || null,
+      seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+      seafarerPhone: user?.phone || null,
+    });
+  } catch (err) {
+    console.error('Lookup parcel error:', err);
+    return c.json({ error: { code: 'SERVER_ERROR', message: 'Lookup failed' } }, 500);
+  }
+});
+
+// PATCH /api/station/parcels/:id/arrived
+stationParcelsRouter.patch('/:id/arrived', async (c) => {
   try {
     const staff = c.get('user');
     const id = parseInt(c.req.param('id'), 10);
@@ -289,7 +354,8 @@ stationParcelsRouter.patch('/:id/notes', async (c) => {
   try {
     const staff = c.get('user');
     const id = parseInt(c.req.param('id'), 10);
-    const { internalNotes } = await c.req.json();
+    const body = await c.req.json();
+    const internalNotes = body.notes !== undefined ? body.notes : body.internalNotes;
     const db = getDb(c.env);
 
     const [updated] = await db.update(parcelRequests).set({
