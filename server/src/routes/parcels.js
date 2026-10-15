@@ -62,15 +62,19 @@ parcelsRouter.post('/', async (c) => {
 
     const [user] = await db.select().from(users).where(eq(users.id, userPayload.userId)).limit(1);
 
-    sendRequestEmail({
-      email: user?.email,
-      stationEmail: station?.email,
-      referenceNumber: parcel.referenceNumber,
-      size,
-      stationName: station?.name,
-      stationAddress: station?.address,
-      seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
-    }).catch(err => console.error('Request email error:', err.message));
+    try {
+      await sendRequestEmail({
+        email: user?.email,
+        stationEmail: station?.email,
+        referenceNumber: parcel.referenceNumber,
+        size,
+        stationName: station?.name,
+        stationAddress: station?.address,
+        seafarerName: user ? `${user.firstName} ${user.lastName}` : '',
+      });
+    } catch (err) {
+      console.error('Request email error:', err.message);
+    }
 
     return c.json({
       ...parcel,

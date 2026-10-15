@@ -101,11 +101,15 @@ authRouter.post('/forgot-password', async (c) => {
       resetOtpExpiry: otpExpiry,
     }).where(eq(users.id, user.id));
 
-    sendResetPasswordEmail({
-      email: user.email,
-      firstName: user.firstName,
-      otp,
-    }).catch(err => console.error('Forgot password email error:', err.message));
+    try {
+      await sendResetPasswordEmail({
+        email: user.email,
+        firstName: user.firstName,
+        otp,
+      });
+    } catch (err) {
+      console.error('Forgot password email error:', err.message);
+    }
 
     return c.json({ message: 'If the email exists, an OTP has been sent' });
   } catch (err) {

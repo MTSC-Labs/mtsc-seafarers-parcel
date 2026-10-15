@@ -66,19 +66,28 @@ async function sendBrevoEmail({ from, to, cc, bcc, replyTo, subject, html }) {
       subject,
     });
 
-    const response = await axios.post(
-      "https://api.brevo.com/v3/smtp/email",
-      payload,
-      {
-        headers: {
-          accept: "application/json",
-          "api-key": brevoApiKey,
-          "content-type": "application/json",
-        },
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "api-key": brevoApiKey,
+        "content-type": "application/json",
       },
-    );
+      body: JSON.stringify(payload),
+    });
 
-    console.log("Brevo response:", response.data);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Brevo API error:", res.status, errText);
+      console.error(
+        "Failed payload:",
+        JSON.stringify({ from, to, cc, bcc, replyTo, subject }, null, 2),
+      );
+      return false;
+    }
+
+    const data = await res.json();
+    console.log("Brevo response:", data);
     return true;
   } catch (error) {
     console.error("Brevo API error:", error.response?.data || error.message);
