@@ -201,12 +201,13 @@ stationParcelsRouter.post('/:id/deliver', async (c) => {
     let storedSignature = signatureDataUrl;
 
     // If Cloudflare R2 bucket binding is configured, upload the signature to R2
-    if (c.env.BUCKET && signatureDataUrl.startsWith('data:image/')) {
+    const bucket = c.env?.BUCKET || c.env?.mtsc_parcel_uploads;
+    if (bucket && signatureDataUrl.startsWith('data:image/')) {
       try {
         const base64Data = signatureDataUrl.split(',')[1];
         const buffer = Buffer.from(base64Data, 'base64');
         const filename = `signatures/sig-${parcel.referenceNumber}-${Date.now()}.png`;
-        await c.env.BUCKET.put(filename, buffer, {
+        await bucket.put(filename, buffer, {
           httpMetadata: { contentType: 'image/png' },
         });
         storedSignature = `/uploads/${filename}`;
@@ -310,3 +311,4 @@ stationParcelsRouter.patch('/:id/notes', async (c) => {
 });
 
 module.exports = stationParcelsRouter;
+

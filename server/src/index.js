@@ -36,8 +36,9 @@ app.get('/api/health', (c) => {
 // Serve uploaded assets (signatures, documents) from Cloudflare R2
 app.get('/uploads/*', async (c) => {
   const key = c.req.path.replace(/^\/uploads\//, '');
-  if (c.env?.BUCKET) {
-    const object = await c.env.BUCKET.get(key);
+  const bucket = c.env?.BUCKET || c.env?.mtsc_parcel_uploads;
+  if (bucket) {
+    const object = await bucket.get(key);
     if (object) {
       const headers = new Headers();
       object.writeHttpMetadata(headers);

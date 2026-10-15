@@ -8,15 +8,15 @@
   ],
   "d1_databases": [
     {
-      "binding": "DB",
+      "binding": "mtsc_parcel_db",
       "database_name": "mtsc-parcel-db",
-      "database_id": "mtsc-parcel-db"
+      "database_id": "8459d0ef-2980-45bf-8912-3d15d970fd3e"
     }
   ],
-  "r2_buckets": [
+ "r2_buckets": [
     {
-      "binding": "BUCKET",
-      "bucket_name": "mtsc-parcel-uploads"
+      "bucket_name": "mtsc-parcel-uploads",
+      "binding": "mtsc_parcel_uploads"
     }
   ]
 }
