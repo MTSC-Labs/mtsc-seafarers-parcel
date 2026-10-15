@@ -14,14 +14,33 @@ const reportsRouter = require('./routes/reports');
 
 const app = new Hono();
 
-// CORS configuration matching your frontend
-app.use('*', cors({
-  origin: (origin) => origin || '*',
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'X-Station-Id'],
-  exposeHeaders: ['Content-Disposition'],
-  credentials: true,
-}));
+// CORS configuration supporting FRONTEND_URL, Cloudflare Pages, and custom domains
+app.use('*', async (c, next) => {
+  const envOrigins = c.env?.FRONTEND_URL
+    ? c.env.FRONTEND_URL.split(',').map((u) => u.trim())
+    : [];
+
+  const corsMiddleware = cors({
+    origin: (origin) => {
+      if (!origin) return '*';
+      if (
+        envOrigins.length === 0 ||
+        envOrigins.includes(origin) ||
+        origin.endsWith('.pages.dev') ||
+        origin.includes('localhost')
+      ) {
+        return origin;
+      }
+      return null;
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Station-Id'],
+    exposeHeaders: ['Content-Disposition'],
+    credentials: true,
+  });
+
+  return corsMiddleware(c, next);
+});
 
 // Health check endpoint
 app.get('/api/health', (c) => {

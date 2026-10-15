@@ -13,10 +13,15 @@
       "database_id": "8459d0ef-2980-45bf-8912-3d15d970fd3e"
     }
   ],
- "r2_buckets": [
+  "r2_buckets": [
     {
       "bucket_name": "mtsc-parcel-uploads",
       "binding": "mtsc_parcel_uploads"
     }
-  ]
+  ],
+  "vars": {
+    "FRONTEND_URL": "https://parcelservice.mtsc.ca,https://forestgreen-caterpillar-698192.hostingersite.com,http://localhost:5173",
+    "BACKEND_URL": "https://lavenderblush-albatross-581815.hostingersite.com",
+    "ENVIRONMENT": "production"
+  }
 }
