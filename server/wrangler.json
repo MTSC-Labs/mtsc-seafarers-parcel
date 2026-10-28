@@ -19,9 +19,9 @@
       "binding": "mtsc_parcel_uploads"
     }
   ],
-  "vars": {
-    "FRONTEND_URL": "https://mtsc-seafarers-parcel.cloudgenz-it.workers.dev,https://parcelservice.mtsc.ca,http://localhost:5173",
-    "BACKEND_URL": "https://mtsc-seafarers-parcel-backend.cloudgenz-it.workers.dev",
-    "ENVIRONMENT": "production"
+ "vars": {
+    "BACKEND_URL": "https://parcelservice.mtsc.ca",
+    "ENVIRONMENT": "production",
+    "FRONTEND_URL": "https://mtsc-seafarers-parcel.cloudgenz-it.workers.dev,https://parcelservice.mtsc.ca,http://localhost:5173"
   }
 }
